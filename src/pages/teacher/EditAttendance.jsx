@@ -49,11 +49,15 @@ const EditAttendance = () => {
   };
 
   const fetchDates = async (classId) => {
-    setSelectedDate('');
-    setStudents([]);
-    setRecordsMap({});
-    const res = await getAttendanceDatesForSubjectAndClass(subjectId, classId);
-    if (res.success) setDates(res.data);
+      setSelectedDate('');
+      setStudents([]);
+      setRecordsMap({});
+      const res = await getAttendanceDatesForSubjectAndClass(subjectId, classId);
+      if (res.success) {
+        // ✅ Sort dates in descending order (latest to earliest)
+        const sortedDates = [...res.data].sort((a, b) => b.localeCompare(a));
+        setDates(sortedDates);
+      }
   };
 
   const fetchRecords = async () => {

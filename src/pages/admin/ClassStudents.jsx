@@ -106,62 +106,62 @@ const SortableStudentItem = ({ student, index, isReorderMode, editingStudent, ed
                 </select>
               </div>
             </div>
-            <div className="flex gap-2 justify-end sm:justify-start">
+            <div className="flex gap-2 justify-end sm:justify-start flex-shrink-0">
               <Button size="sm" variant="success" onClick={() => handleSaveEdit(student.id)} loading={saving} icon={Save}>Save</Button>
               <Button size="sm" variant="secondary" onClick={handleCancelEdit} icon={X}>Cancel</Button>
             </div>
           </div>
         ) : (
-          <div className="flex flex-row sm:items-center gap-3 sm:gap-4 flex-wrap sm:flex-nowrap">
+          <div className="flex items-center gap-3">
             {isReorderMode && isAdmin && (
-              // Must stay visible on phones — hiding it made reordering
-              // impossible on the devices most likely to be used for it.
               <button
                 {...attributes}
                 {...listeners}
                 aria-label={`Reorder ${student.name}`}
-                className="cursor-grab active:cursor-grabbing p-1.5 -ml-1 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg touch-none shrink-0 self-start sm:self-auto"
+                className="cursor-grab active:cursor-grabbing p-1.5 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg touch-none shrink-0"
               >
                 <GripVertical className="w-5 h-5" />
               </button>
             )}
             
-            <div className="flex items-center gap-4 flex-1 min-w-0">
-              <div className="w-10 h-10 bg-green-100 rounded-full flex items-center justify-center text-sm font-bold text-green-600 flex-shrink-0">
-                {index + 1}
+            <div className="w-9 h-9 bg-green-100 rounded-full flex items-center justify-center text-sm font-bold text-green-600 flex-shrink-0">
+              {index + 1}
+            </div>
+            
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-2">
+                <User className="w-4 h-4 text-gray-400 flex-shrink-0" />
+                <span className="font-semibold text-gray-900 truncate">{student.name}</span>
               </div>
-              
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2">
-                  <User className="w-4 h-4 text-gray-400 flex-shrink-0" />
-                  <span className="font-medium text-gray-800 truncate">{student.name}</span>
-                </div>
-                <div className="flex items-center gap-2 mt-1 text-xs text-gray-500">
-                  <IdCard className="w-3 h-3" />
-                  <span>{student.studentId}</span>
-                  <span className="hidden sm:inline">•</span>
-                  <span className="hidden sm:inline">{student.gender || 'N/A'}</span>
-                </div>
+              <div className="flex items-center gap-2 mt-0.5 text-xs text-gray-500">
+                <IdCard className="w-3 h-3 flex-shrink-0" />
+                <span>{student.studentId}</span>
+                {student.gender && (
+                  <>
+                    <span className="text-gray-300">•</span>
+                    <span>{student.gender}</span>
+                  </>
+                )}
               </div>
             </div>
 
-            <div className="flex gap-2 justify-end sm:justify-start mt-2 sm:mt-0 border-t sm:border-t-0 pt-2 sm:pt-0">
-              {isReorderMode ? (
-                <span className="text-xs text-gray-400 italic p-2">Drag to reorder</span>
-              ) : (
-                <>
-                  <Link to={`/student/details/${student.id}`}>
-                    <Button size="sm" variant="secondary" icon={Eye}>View</Button>
-                  </Link>
-                  {isAdmin && (
-                    <>
-                      <Button size="sm" variant="secondary" onClick={() => handleEdit(student)} icon={Edit2}>Edit</Button>
-                      <Button size="sm" variant="danger" onClick={() => handleDelete(student.id, student.name)} loading={deleting === student.id} icon={Trash2}>Delete</Button>
-                    </>
-                  )}
-                </>
-              )}
-            </div>
+            {!isReorderMode && (
+              <div className="flex gap-2 flex-shrink-0">
+                <Link to={`/student/details/${student.id}`}>
+                  <Button size="sm" variant="secondary" icon={Eye}>View</Button>
+                </Link>
+                {isAdmin && (
+                  <>
+                    <Button size="sm" variant="secondary" onClick={() => handleEdit(student)} icon={Edit2} className="hidden sm:inline-flex">Edit</Button>
+                    <Button size="sm" variant="danger" onClick={() => handleDelete(student.id, student.name)} loading={deleting === student.id} icon={Trash2} className="hidden sm:inline-flex">Delete</Button>
+                  </>
+                )}
+              </div>
+            )}
+
+            {isReorderMode && (
+              <span className="text-xs text-gray-400 italic px-2 py-1 hidden sm:inline">Drag to reorder</span>
+            )}
           </div>
         )}
       </Card>
@@ -229,9 +229,6 @@ const ClassStudents = () => {
     setLoading(false);
   };
 
-  // Totals are kept on the class document as attendance is taken, so finding
-  // who is below 75% is a single document read. Previously this queried every
-  // student's whole attendance history — about 19,000 reads for one class.
   const fetchLowAttendance = async (studentList, force = false) => {
     setLoadingStats(true);
     try {
@@ -248,7 +245,6 @@ const ClassStudents = () => {
     }
   };
 
-  // One-off backfill for attendance recorded before rollups existed.
   const handleRecomputeStats = async () => {
     setRecomputing(true);
     const res = await recomputeClassAttendanceStats(classId);
@@ -355,124 +351,144 @@ const ClassStudents = () => {
       <Navbar />
       
       <main className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
-          <div>
-            <Link to={-1} className="inline-flex items-center text-gray-600 hover:text-gray-800 mb-2">
-              <ArrowLeft className="w-5 h-5 mr-2" /> Back
-            </Link>
-            <h1 className="text-2xl sm:text-3xl font-bold text-gray-800 break-words">{classData?.name}</h1>
-            <p className="text-gray-600">{students.length} student{students.length !== 1 ? 's' : ''} in this class</p>
-          </div>
+        {/* Header Section */}
+        <div className="mb-6">
+          <Link to={-1} className="inline-flex items-center text-gray-600 hover:text-gray-800 mb-3 text-sm font-medium">
+            <ArrowLeft className="w-4 h-4 mr-2" /> Back
+          </Link>
+          <div className="flex flex-col lg:flex-row lg:items-end lg:justify-between gap-4">
+            <div>
+              <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 break-words">{classData?.name}</h1>
+              <p className="text-gray-600 mt-1 font-medium">{students.length} student{students.length !== 1 ? 's' : ''} in this class</p>
+            </div>
 
-          {isAdmin && (
-            <div className="flex gap-2 flex-wrap">
-                 {lowAttendanceStudents.length > 0 && !isReorderMode && (
-                    <Button variant="secondary" icon={Download} onClick={handleExportLowAttendance} loading={loadingStats}>
-                        Export Low Att.
+            {/* Action Buttons with Search */}
+            <div className="flex flex-wrap items-center gap-2">
+              {/* Search Bar - Only shown when NOT in reorder mode */}
+              {!isReorderMode && (
+                <div className="relative w-full sm:w-48 order-first lg:order-none">
+                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+                  <input
+                    type="text"
+                    placeholder="Search..."
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    className="w-full pl-9 pr-3 py-2 border-2 border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  />
+                </div>
+              )}
+
+              {isAdmin && (
+                <>
+                  {lowAttendanceStudents.length > 0 && !isReorderMode && (
+                    <Button variant="secondary" size="sm" icon={Download} onClick={handleExportLowAttendance} loading={loadingStats}>
+                      Export Low Att.
                     </Button>
-                 )}
-              {isReorderMode ? (
-                <>
-                  <Button variant="secondary" onClick={exitReorderMode} icon={X}>Cancel</Button>
-                  <Button icon={Save} onClick={saveOrder} loading={savingOrder}>Save Order</Button>
-                </>
-              ) : (
-                <>
-                  <Button variant="secondary" icon={ListOrdered} onClick={enterReorderMode}>Reorder</Button>
-                  <Link to={`/admin/class/${classId}/edit`}>
-                    <Button icon={Edit2}>Edit Class</Button>
-                  </Link>
+                  )}
+                  {isReorderMode ? (
+                    <>
+                      <Button variant="secondary" size="sm" onClick={exitReorderMode} icon={X}>Cancel</Button>
+                      <Button size="sm" onClick={saveOrder} loading={savingOrder} icon={Save}>Save Order</Button>
+                    </>
+                  ) : (
+                    <>
+                      <Button variant="secondary" size="sm" icon={ListOrdered} onClick={enterReorderMode}>Reorder</Button>
+                      <Link to={`/admin/class/${classId}/edit`}>
+                        <Button size="sm" icon={Edit2}>Edit Class</Button>
+                      </Link>
+                    </>
+                  )}
                 </>
               )}
             </div>
-          )}
+          </div>
         </div>
 
-        {/* Shown only when a class has attendance recorded before rollups
-            existed, so its totals have never been calculated. */}
+        {/* Warning Banner */}
         {isAdmin && !statsAvailable && !isReorderMode && !loadingStats && students.length > 0 && (
-          <Card className="mb-6 bg-amber-50 border border-amber-200">
+          <Card className="mb-6 bg-amber-50 border-2 border-amber-200">
             <div className="flex flex-col sm:flex-row sm:items-center gap-3">
               <AlertTriangle className="w-5 h-5 text-amber-600 shrink-0" />
               <p className="text-sm text-amber-800 flex-1">
                 No attendance totals recorded for this class yet. They build up automatically as
                 attendance is taken — if this class has older attendance, rebuild them once.
               </p>
-              <Button size="sm" variant="secondary" onClick={handleRecomputeStats} loading={recomputing}>
+              <Button size="sm" variant="secondary" onClick={handleRecomputeStats} loading={recomputing} className="shrink-0">
                 Rebuild Totals
               </Button>
             </div>
           </Card>
         )}
 
+        {/* Low Attendance Alert - SMALLER SIZE */}
         {isAdmin && lowAttendanceStudents.length > 0 && !isReorderMode && (
-            <Card className="mb-6 bg-red-50 border border-red-200 p-0 overflow-hidden">
-                <button 
-                    onClick={() => setShowLowAttendance(!showLowAttendance)}
-                    className="w-full p-4 flex items-center justify-between hover:bg-red-100 transition-colors"
-                >
-                    <div className="flex items-center gap-2">
-                        <AlertTriangle className="w-5 h-5 text-red-600" />
-                        <h2 className="font-bold text-red-800">Low Attendance Alert ({lowAttendanceStudents.length} Students)</h2>
-                    </div>
-                    <div className="flex items-center gap-2">
-                        {showLowAttendance ? 
-                            <ChevronUp className="w-5 h-5 text-red-600" /> : 
-                            <ChevronDown className="w-5 h-5 text-red-600" />
-                        }
-                    </div>
-                </button>
+          <Card className="mb-6 bg-red-50 border-2 border-red-200 p-0 overflow-hidden">
+            <button 
+              onClick={() => setShowLowAttendance(!showLowAttendance)}
+              className="w-full p-3 flex items-center justify-between hover:bg-red-100 transition-colors"
+            >
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 bg-red-100 rounded-lg flex items-center justify-center shrink-0">
+                  <AlertTriangle className="w-4 h-4 text-red-600" />
+                </div>
+                <div className="text-left">
+                  <h2 className="font-bold text-red-900 text-sm">Low Attendance Alert</h2>
+                  <p className="text-xs text-red-700 font-medium">{lowAttendanceStudents.length} student{lowAttendanceStudents.length > 1 ? 's' : ''} below 75%</p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2 shrink-0">
+                {showLowAttendance ? 
+                  <ChevronUp className="w-4 h-4 text-red-600" /> : 
+                  <ChevronDown className="w-4 h-4 text-red-600" />
+                }
+              </div>
+            </button>
 
-                {showLowAttendance && (
-                    <div className="p-4 pt-0 border-t border-red-200">
-                        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 mt-4">
-                            {lowAttendanceStudents.map(student => (
-                                <div key={student.id} className="bg-white p-3 rounded-lg border border-red-100 flex justify-between items-center shadow-sm">
-                                    <div className="flex items-center gap-2">
-                                        <div className="w-8 h-8 bg-red-100 rounded-full flex items-center justify-center text-xs font-bold text-red-600">
-                                            {student.name.charAt(0)}
-                                        </div>
-                                        <div>
-                                            <p className="font-medium text-gray-800 text-sm">{student.name}</p>
-                                            <p className="text-xs text-red-600 font-bold">{student.stats.percentage}%</p>
-                                        </div>
-                                    </div>
-                                    <Link to={`/student/details/${student.id}`}>
-                                        <Button size="sm" variant="secondary" icon={Eye}>View</Button>
-                                    </Link>
-                                </div>
-                            ))}
+            {showLowAttendance && (
+              <div className="p-3 pt-0 border-t-2 border-red-200 bg-white">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2 mt-2">
+                  {lowAttendanceStudents.map(student => (
+                    <div key={student.id} className="bg-white p-2.5 rounded-lg border border-red-100 flex justify-between items-center shadow-sm hover:shadow-md transition-shadow">
+                      <div className="flex items-center gap-2 min-w-0 flex-1">
+                        <div className="w-7 h-7 bg-red-100 rounded-lg flex items-center justify-center text-xs font-bold text-red-600 shrink-0">
+                          {student.name.charAt(0).toUpperCase()}
                         </div>
+                        <div className="min-w-0 flex-1">
+                          <p className="font-semibold text-gray-900 text-xs truncate">{student.name}</p>
+                          <p className="text-[10px] text-red-600 font-bold">{student.stats.percentage}%</p>
+                        </div>
+                      </div>
+                      <Link to={`/student/details/${student.id}`} className="shrink-0 ml-2">
+                        <button className="p-1.5 text-gray-600 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors">
+                          <Eye className="w-4 h-4" />
+                        </button>
+                      </Link>
                     </div>
-                )}
-            </Card>
+                  ))}
+                </div>
+              </div>
+            )}
+          </Card>
         )}
 
-        {!isReorderMode && (
-          <Card className="mb-6">
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
-              <input
-                type="text"
-                placeholder="Search by name or ID..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-              />
+        {/* Reorder Mode Banner */}
+        {isReorderMode && (
+          <Card className="mb-4 bg-yellow-50 border-2 border-yellow-200 p-3">
+            <div className="flex items-start gap-2">
+              <GripVertical className="w-5 h-5 text-yellow-700 shrink-0 mt-0.5" />
+              <p className="text-sm text-yellow-800 font-medium">Drag and drop students to set the attendance order.</p>
             </div>
           </Card>
         )}
 
-        {isReorderMode && (
-          <Card className="mb-4 bg-yellow-50 border-yellow-200 p-3">
-            <p className="text-sm text-yellow-700 font-medium">Drag and drop students to set the attendance order.</p>
-          </Card>
-        )}
-
+        {/* Student List */}
         {displayList.length === 0 ? (
-          <Card className="text-center py-12">
+          <Card className="text-center py-16 px-4">
             <Users className="w-16 h-16 text-gray-300 mx-auto mb-4" />
-            <p className="text-gray-500 text-lg">{searchTerm ? 'No students found' : 'No students in this class'}</p>
+            <p className="text-gray-500 text-lg font-medium">{searchTerm ? 'No students found' : 'No students in this class'}</p>
+            {searchTerm && (
+              <p className="text-gray-400 text-sm mt-2">Try a different search term</p>
+            )}
           </Card>
         ) : (
           <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>

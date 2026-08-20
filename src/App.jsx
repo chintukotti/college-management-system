@@ -126,6 +126,9 @@ function App() {
 
             {/* Class & Students */}
             <Route path="/teacher/class/:classId/students" element={guarded(['teacher'], ClassStudents)} />
+            {/* ✅ NEW: Teacher access to CR Attendance Report */}
+            <Route path="/teacher/class/:classId/cr-attendance-report" element={guarded(['teacher'], ClassAttendanceReport)} />
+
 
             {/* Attendance Management */}
             <Route path="/teacher/subject/:subjectId/class/:classId/attendance" element={guarded(['teacher'], TakeAttendance)} />

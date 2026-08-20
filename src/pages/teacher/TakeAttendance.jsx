@@ -179,6 +179,7 @@ const TakeAttendance = () => {
           time: attendanceTime,
           sessionType,
           markedBy: currentUser.uid,
+          teacherName: currentUser.name, //Added
           unit,
           topic
         }

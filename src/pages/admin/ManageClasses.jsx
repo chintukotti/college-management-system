@@ -1,38 +1,141 @@
-// src/pages/admin/ManageClasses.jsx
-
-import React, { useState, useEffect, useMemo } from 'react';
-import { Link } from 'react-router-dom';
-import { ArrowLeft, FolderPlus, Trash2, Users, Calendar, Search, Layers, Eye, Edit2, AlertTriangle, Download, ChevronDown, ChevronUp, UserCheck, Save, X, ListOrdered, GripVertical, MoreVertical, RefreshCw, GraduationCap, TrendingDown } from 'lucide-react';
-import { getAllClasses, deleteClass, getStudentsByClass, updateClassesOrder, getGlobalLowAttendance, recomputeAllClassesStats } from '../../firebase/services';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
+import {
+  ArrowLeft, FolderPlus, Trash2, Users, Calendar, Search, Layers, Eye, Edit2,
+  AlertTriangle, Download, ChevronDown, ChevronUp, UserCheck, Save, X, ListOrdered, GripVertical,
+  MoreVertical, RefreshCw, TrendingDown
+} from 'lucide-react';
+import {
+  getAllClasses, deleteClass, getStudentsByClass, updateClassesOrder,
+  getGlobalLowAttendance, recomputeAllClassesStats
+} from '../../firebase/services';
 import { useAuth } from '../../contexts/AuthContext';
 import { createGlobalLowAttendanceExcel } from '../../utils/excelUtils';
 import Navbar from '../../components/common/Navbar';
+import Card from '../../components/common/Card';
 import Button from '../../components/common/Button';
 import { Skeleton } from '../../components/common/Skeleton';
 import toast from 'react-hot-toast';
 
 // DnD Kit Imports
-import { DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors } from '@dnd-kit/core';
-import { arrayMove, SortableContext, sortableKeyboardCoordinates, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable';
+import {
+  DndContext,
+  closestCenter,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+} from '@dnd-kit/core';
+import {
+  arrayMove,
+  SortableContext,
+  sortableKeyboardCoordinates,
+  useSortable,
+  rectSortingStrategy,
+} from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 
-// Rotating accents so a long list of classes stays scannable
+// Enhanced color themes for cards
 const ACCENTS = [
-  { bar: 'bg-orange-500', tile: 'bg-orange-50 text-orange-600', ring: 'group-hover:border-orange-300' },
-  { bar: 'bg-blue-500', tile: 'bg-blue-50 text-blue-600', ring: 'group-hover:border-blue-300' },
-  { bar: 'bg-emerald-500', tile: 'bg-emerald-50 text-emerald-600', ring: 'group-hover:border-emerald-300' },
-  { bar: 'bg-violet-500', tile: 'bg-violet-50 text-violet-600', ring: 'group-hover:border-violet-300' },
-  { bar: 'bg-rose-500', tile: 'bg-rose-50 text-rose-600', ring: 'group-hover:border-rose-300' },
-  { bar: 'bg-cyan-500', tile: 'bg-cyan-50 text-cyan-600', ring: 'group-hover:border-cyan-300' },
+  { 
+    bar: 'bg-gradient-to-br from-orange-500 to-orange-600', 
+    bg: 'bg-gradient-to-br from-orange-50 to-orange-100/50',
+    border: 'border-orange-200',
+    hover: 'hover:border-orange-300 hover:shadow-orange-200/50',
+    icon: 'bg-orange-100 text-orange-600',
+    text: 'text-orange-700',
+    badge: 'bg-orange-100 text-orange-700'
+  },
+  { 
+    bar: 'bg-gradient-to-br from-blue-500 to-blue-600', 
+    bg: 'bg-gradient-to-br from-blue-50 to-blue-100/50',
+    border: 'border-blue-200',
+    hover: 'hover:border-blue-300 hover:shadow-blue-200/50',
+    icon: 'bg-blue-100 text-blue-600',
+    text: 'text-blue-700',
+    badge: 'bg-blue-100 text-blue-700'
+  },
+  { 
+    bar: 'bg-gradient-to-br from-emerald-500 to-emerald-600', 
+    bg: 'bg-gradient-to-br from-emerald-50 to-emerald-100/50',
+    border: 'border-emerald-200',
+    hover: 'hover:border-emerald-300 hover:shadow-emerald-200/50',
+    icon: 'bg-emerald-100 text-emerald-600',
+    text: 'text-emerald-700',
+    badge: 'bg-emerald-100 text-emerald-700'
+  },
+  { 
+    bar: 'bg-gradient-to-br from-violet-500 to-violet-600', 
+    bg: 'bg-gradient-to-br from-violet-50 to-violet-100/50',
+    border: 'border-violet-200',
+    hover: 'hover:border-violet-300 hover:shadow-violet-200/50',
+    icon: 'bg-violet-100 text-violet-600',
+    text: 'text-violet-700',
+    badge: 'bg-violet-100 text-violet-700'
+  },
+  { 
+    bar: 'bg-gradient-to-br from-rose-500 to-rose-600', 
+    bg: 'bg-gradient-to-br from-rose-50 to-rose-100/50',
+    border: 'border-rose-200',
+    hover: 'hover:border-rose-300 hover:shadow-rose-200/50',
+    icon: 'bg-rose-100 text-rose-600',
+    text: 'text-rose-700',
+    badge: 'bg-rose-100 text-rose-700'
+  },
+  { 
+    bar: 'bg-gradient-to-br from-cyan-500 to-cyan-600', 
+    bg: 'bg-gradient-to-br from-cyan-50 to-cyan-100/50',
+    border: 'border-cyan-200',
+    hover: 'hover:border-cyan-300 hover:shadow-cyan-200/50',
+    icon: 'bg-cyan-100 text-cyan-600',
+    text: 'text-cyan-700',
+    badge: 'bg-cyan-100 text-cyan-700'
+  },
+  { 
+    bar: 'bg-gradient-to-br from-amber-500 to-amber-600', 
+    bg: 'bg-gradient-to-br from-amber-50 to-amber-100/50',
+    border: 'border-amber-200',
+    hover: 'hover:border-amber-300 hover:shadow-amber-200/50',
+    icon: 'bg-amber-100 text-amber-600',
+    text: 'text-amber-700',
+    badge: 'bg-amber-100 text-amber-700'
+  },
+  { 
+    bar: 'bg-gradient-to-br from-indigo-500 to-indigo-600', 
+    bg: 'bg-gradient-to-br from-indigo-50 to-indigo-100/50',
+    border: 'border-indigo-200',
+    hover: 'hover:border-indigo-300 hover:shadow-indigo-200/50',
+    icon: 'bg-indigo-100 text-indigo-600',
+    text: 'text-indigo-700',
+    badge: 'bg-indigo-100 text-indigo-700'
+  },
 ];
 
-// --- Sortable Class Card ---
+// --- Sortable Class Card Component ---
 const SortableClassCard = ({ cls, index, isReorderMode, handleDelete, deleting, matchingStudents, lowCount }) => {
-  const [showActions, setShowActions] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
+  const menuRef = useRef(null);
+  const navigate = useNavigate();
   const accent = ACCENTS[index % ACCENTS.length];
 
+  // Close menu on outside click
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (menuRef.current && !menuRef.current.contains(event.target)) {
+        setMenuOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
   const {
-    attributes, listeners, setNodeRef, transform, transition, isDragging,
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
   } = useSortable({ id: cls.id });
 
   const style = {
@@ -42,147 +145,117 @@ const SortableClassCard = ({ cls, index, isReorderMode, handleDelete, deleting, 
     zIndex: isDragging ? 100 : 'auto',
   };
 
-  const actions = [
-    { to: `/admin/class/${cls.id}/students`, label: 'Students', icon: Eye },
-    { to: `/admin/class/${cls.id}/attendance-report`, label: 'Report', icon: Calendar },
-    { to: `/admin/class/${cls.id}/crs`, label: 'CRs', icon: UserCheck },
-    { to: `/admin/class/${cls.id}/edit`, label: 'Edit', icon: Edit2 },
-  ];
-
   return (
-    <div ref={setNodeRef} style={style}>
+    <div ref={setNodeRef} style={style} className="h-full">
       <div
-        className={`group relative bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden
-          transition-all hover:shadow-md ${accent.ring}
-          ${isDragging ? 'shadow-lg border-blue-400' : ''}`}
+        onClick={() => !isReorderMode && navigate(`/admin/class/${cls.id}/students`)}
+        className={`h-full ${!isReorderMode ? 'cursor-pointer' : ''}`}
       >
-        {/* Accent spine */}
-        <div className={`absolute inset-y-0 left-0 w-1 ${accent.bar}`} />
+        <div
+          className={`relative h-full flex flex-col transition-all duration-200 rounded-xl border-2 ${accent.border} ${accent.bg} ${!isReorderMode ? `${accent.hover} hover:shadow-lg` : ''} ${isDragging ? 'shadow-xl border-blue-400' : ''} p-4`}
+        >
+          {/* Top colored bar */}
+          <div className={`absolute top-0 left-0 right-0 h-1.5 rounded-t-xl ${accent.bar}`} />
 
-        <div className="p-3.5 sm:p-4 pl-4 sm:pl-5">
-          <div className="flex items-start gap-3">
-            {isReorderMode && (
-              <button
-                {...attributes}
-                {...listeners}
-                aria-label={`Reorder ${cls.name}`}
-                className="cursor-grab active:cursor-grabbing p-1.5 -ml-1 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg touch-none shrink-0"
-              >
-                <GripVertical className="w-5 h-5" />
-              </button>
-            )}
-
-            <div className={`w-10 h-10 sm:w-11 sm:h-11 rounded-xl flex items-center justify-center shrink-0 ${accent.tile}`}>
-              <Layers className="w-5 h-5 sm:w-[22px] sm:h-[22px]" />
-            </div>
-
-            <div className="flex-1 min-w-0">
-              <div className="flex items-start justify-between gap-2">
-                <h3 className="font-semibold text-gray-900 text-[15px] sm:text-base leading-tight break-words">
-                  {cls.name}
-                </h3>
-
-                {!isReorderMode && (
-                  <button
-                    onClick={() => setShowActions(!showActions)}
-                    aria-label="More actions"
-                    className="lg:hidden p-1.5 -mr-1 -mt-1 rounded-lg hover:bg-gray-100 text-gray-400 shrink-0"
-                  >
-                    <MoreVertical className="w-5 h-5" />
-                  </button>
-                )}
-              </div>
-
-              {/* Meta chips */}
-              <div className="flex flex-wrap items-center gap-1.5 mt-2">
-                <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-gray-100 text-gray-700 rounded-md text-xs font-medium">
-                  <Users className="w-3 h-3" />
-                  {cls.studentCount || 0} students
-                </span>
-
-                {lowCount > 0 && (
-                  <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-red-50 text-red-700 rounded-md text-xs font-medium">
-                    <TrendingDown className="w-3 h-3" />
-                    {lowCount} below 75%
-                  </span>
-                )}
-
-                {cls.description && (
-                  <span className="text-xs text-gray-400 truncate max-w-full sm:max-w-[16rem]">
-                    {cls.description}
-                  </span>
-                )}
-              </div>
-
-              {/* Search hits */}
-              {matchingStudents && matchingStudents.length > 0 && (
-                <div className="mt-2.5 flex flex-wrap gap-1">
-                  {matchingStudents.slice(0, 3).map((student) => (
-                    <span key={student.id} className="inline-flex items-center gap-1 px-2 py-0.5 bg-blue-50 text-blue-700 rounded-full text-xs">
-                      <GraduationCap className="w-3 h-3" />
-                      {student.studentId} • {student.name}
-                    </span>
-                  ))}
-                  {matchingStudents.length > 3 && (
-                    <span className="px-2 py-0.5 bg-gray-100 text-gray-600 rounded-full text-xs">
-                      +{matchingStudents.length - 3} more
-                    </span>
-                  )}
+          <div className="flex items-start justify-between gap-3 mt-1">
+            <div className="flex items-start gap-3 min-w-0 flex-1">
+              {isReorderMode && (
+                <div {...attributes} {...listeners} onClick={(e) => e.stopPropagation()} className="cursor-grab active:cursor-grabbing text-gray-400 hover:text-gray-600 touch-none shrink-0 mt-1">
+                  <GripVertical className="w-5 h-5" />
                 </div>
               )}
+              <div className={`p-2.5 rounded-xl shrink-0 ${accent.icon} shadow-sm`}>
+                <Layers className="w-5 h-5" />
+              </div>
+              <div className="min-w-0 flex-1">
+                <h3 className={`font-bold text-gray-900 truncate text-base leading-tight`} title={cls.name}>
+                  {cls.name}
+                </h3>
+                <div className="flex items-center gap-1.5 mt-1.5">
+                  <span className={`inline-flex items-center gap-1.5 text-sm font-semibold ${accent.text} whitespace-nowrap`}>
+                    <Users className="w-4 h-4 shrink-0" />
+                    <span>{cls.studentCount || 0} {cls.studentCount === 1 ? 'student' : 'students'}</span>
+                  </span>
+                </div>
+              </div>
             </div>
 
-            {/* Desktop actions */}
             {!isReorderMode && (
-              <div className="hidden lg:flex items-center gap-1 shrink-0">
-                {actions.map(({ to, label, icon: Icon }) => (
-                  <Link
-                    key={label}
-                    to={to}
-                    title={label}
-                    className="inline-flex items-center gap-1.5 px-2.5 py-1.5 text-sm text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors"
-                  >
-                    <Icon className="w-4 h-4" />
-                    {label}
-                  </Link>
-                ))}
+              <div className="relative shrink-0" ref={menuRef} onClick={(e) => e.stopPropagation()}>
                 <button
-                  onClick={() => handleDelete(cls.id, cls.name)}
-                  disabled={deleting === cls.id}
-                  title="Delete class"
-                  className="inline-flex items-center gap-1.5 px-2.5 py-1.5 text-sm text-red-600 hover:bg-red-50 rounded-lg transition-colors disabled:opacity-50"
+                  onClick={() => setMenuOpen(!menuOpen)}
+                  className="p-2 rounded-lg hover:bg-white/60 text-gray-600 hover:text-gray-900 transition-colors"
+                  aria-label="More actions"
                 >
-                  {deleting === cls.id
-                    ? <RefreshCw className="w-4 h-4 animate-spin" />
-                    : <Trash2 className="w-4 h-4" />}
+                  <MoreVertical className="w-5 h-5" />
                 </button>
+                {menuOpen && (
+                  <div className="absolute right-0 top-full mt-1 w-48 bg-white rounded-xl shadow-2xl border-2 border-gray-100 py-1.5 z-[100] overflow-hidden">
+                    <Link to={`/admin/class/${cls.id}/students`} onClick={() => setMenuOpen(false)} className="flex items-center gap-3 px-4 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors">
+                      <Eye className="w-4 h-4" /> View Students
+                    </Link>
+                    <Link to={`/admin/class/${cls.id}/crs`} onClick={() => setMenuOpen(false)} className="flex items-center gap-3 px-4 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors">
+                      <UserCheck className="w-4 h-4" /> Manage CRs
+                    </Link>
+                    <Link to={`/admin/class/${cls.id}/attendance-report`} onClick={() => setMenuOpen(false)} className="flex items-center gap-3 px-4 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors">
+                      <Calendar className="w-4 h-4" /> Attendance Report
+                    </Link>
+                    <div className="h-px bg-gray-100 my-1.5" />
+                    <Link to={`/admin/class/${cls.id}/edit`} onClick={() => setMenuOpen(false)} className="flex items-center gap-3 px-4 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors">
+                      <Edit2 className="w-4 h-4" /> Edit Class
+                    </Link>
+                    <button
+                      onClick={() => { setMenuOpen(false); handleDelete(cls.id, cls.name); }}
+                      className="w-full flex items-center gap-3 px-4 py-2.5 text-sm font-medium text-red-600 hover:bg-red-50 transition-colors"
+                    >
+                      {deleting === cls.id ? (
+                        <RefreshCw className="w-4 h-4 animate-spin" />
+                      ) : (
+                        <Trash2 className="w-4 h-4" />
+                      )}
+                      Delete Class
+                    </button>
+                  </div>
+                )}
               </div>
             )}
           </div>
 
-          {/* Mobile / tablet actions */}
-          {!isReorderMode && showActions && (
-            <div className="lg:hidden mt-3 pt-3 border-t border-gray-100 grid grid-cols-4 gap-1">
-              {actions.map(({ to, label, icon: Icon }) => (
-                <Link
-                  key={label}
-                  to={to}
-                  className="flex flex-col items-center gap-1 py-2 rounded-lg hover:bg-gray-50 active:bg-gray-100 text-gray-600"
-                >
-                  <Icon className="w-[18px] h-[18px]" />
-                  <span className="text-[11px] font-medium">{label}</span>
-                </Link>
+          {/* Low Attendance Badge */}
+          {lowCount > 0 && (
+            <div className="mt-3">
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-red-100 text-red-700 rounded-lg text-xs font-bold shadow-sm">
+                <TrendingDown className="w-3.5 h-3.5" /> 
+                {lowCount} {lowCount === 1 ? 'student' : 'students'} below 75%
+              </span>
+            </div>
+          )}
+
+          {/* Matching students when searching */}
+          {matchingStudents && matchingStudents.length > 0 && (
+            <div className="mt-3 flex flex-col gap-2">
+              <div className="flex items-center gap-1.5 mb-0.5">
+                <Search className="w-3.5 h-3.5 text-blue-600" />
+                <span className="text-xs font-semibold text-blue-700">Matched Students:</span>
+              </div>
+              {matchingStudents.slice(0, 2).map((student, idx) => (
+                <div key={idx} className="flex items-center gap-2 px-3 py-2 bg-white/80 border border-blue-200 rounded-lg">
+                  <div className="w-8 h-8 bg-blue-100 rounded-lg flex items-center justify-center shrink-0">
+                    <Users className="w-4 h-4 text-blue-600" />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="font-semibold text-sm text-gray-900 truncate">{student.name}</p>
+                    <p className="text-xs text-gray-500 truncate">{student.studentId}</p>
+                  </div>
+                </div>
               ))}
-              <button
-                onClick={() => handleDelete(cls.id, cls.name)}
-                disabled={deleting === cls.id}
-                className="col-span-4 mt-1 flex items-center justify-center gap-1.5 py-2 rounded-lg text-red-600 hover:bg-red-50 active:bg-red-100 disabled:opacity-50"
-              >
-                {deleting === cls.id
-                  ? <RefreshCw className="w-4 h-4 animate-spin" />
-                  : <Trash2 className="w-4 h-4" />}
-                <span className="text-xs font-medium">Delete class</span>
-              </button>
+              {matchingStudents.length > 2 && (
+                <div className="px-3 py-1.5 bg-white/60 border border-gray-200 rounded-lg text-center">
+                  <span className="text-xs font-semibold text-gray-600">
+                    +{matchingStudents.length - 2} more {matchingStudents.length - 2 === 1 ? 'student' : 'students'}
+                  </span>
+                </div>
+              )}
             </div>
           )}
         </div>
@@ -260,7 +333,6 @@ const ManageClasses = () => {
     }
   };
 
-  // One read per class instead of one query per student
   const fetchGlobalLowAttendance = async (force = false) => {
     setLoadingGlobal(true);
     try {
@@ -285,12 +357,7 @@ const ManageClasses = () => {
   };
 
   const handleRebuildStats = async () => {
-    if (!window.confirm(
-      'Rebuild attendance totals for every class?\n\n' +
-      'This reads all existing attendance records once, and is only needed for ' +
-      'attendance taken before totals were tracked automatically.'
-    )) return;
-
+    if (!window.confirm('Rebuild attendance totals for every class?\n\nThis reads all existing attendance records once, and is only needed for attendance taken before totals were tracked automatically.')) return;
     setRebuilding(true);
     const res = await recomputeAllClassesStats(currentUser.uid);
     if (res.success) {
@@ -375,7 +442,6 @@ const ManageClasses = () => {
     );
   };
 
-  // Low-attendance counts per class, for the badge on each card
   const lowCountByClass = useMemo(() => {
     return globalLowAtt.reduce((acc, student) => {
       if (student.classId) acc[student.classId] = (acc[student.classId] || 0) + 1;
@@ -402,15 +468,17 @@ const ManageClasses = () => {
 
   const displayList = isReorderMode ? reorderList : filteredClasses;
 
-  const ClassListSkeleton = () => (
-    <div className="space-y-3">
-      {[1, 2, 3, 4].map((i) => (
-        <div key={i} className="bg-white rounded-xl border border-gray-200 p-4">
-          <div className="flex items-center gap-3 animate-pulse">
-            <Skeleton variant="rectangular" width="44px" height="44px" className="rounded-xl" />
-            <div className="flex-1">
-              <Skeleton width="45%" height="16px" className="mb-2" />
-              <Skeleton width="30%" height="12px" />
+  const ClassGridSkeleton = () => (
+    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-4">
+      {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((i) => (
+        <div key={i} className="rounded-xl border-2 border-gray-200 bg-gray-50 p-4">
+          <div className="animate-pulse">
+            <div className="flex items-start gap-3 mb-3">
+              <Skeleton variant="rectangular" width="48px" height="48px" className="rounded-xl" />
+              <div className="flex-1">
+                <Skeleton width="70%" height="20px" className="mb-2" />
+                <Skeleton width="40%" height="16px" />
+              </div>
             </div>
           </div>
         </div>
@@ -421,47 +489,48 @@ const ManageClasses = () => {
   return (
     <div className="min-h-screen bg-gray-50">
       <Navbar />
-      <main className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-5 sm:py-8">
-
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-5 sm:py-8">
+        
         {/* ---------- Header ---------- */}
-        <Link to="/admin/dashboard" className="inline-flex items-center text-gray-500 hover:text-gray-800 mb-4 text-sm transition-colors">
-          <ArrowLeft className="w-4 h-4 mr-1.5" /> Dashboard
+        <Link to="/admin/dashboard" className="inline-flex items-center text-gray-500 hover:text-gray-800 mb-4 text-sm font-medium transition-colors">
+          <ArrowLeft className="w-4 h-4 mr-1.5" /> Back to Dashboard
         </Link>
 
-        <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4 mb-5">
+        <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4 mb-6">
           <div>
-            <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 tracking-tight">Classes</h1>
-            <p className="text-gray-500 mt-1 text-sm">
+            <h1 className="text-3xl sm:text-4xl font-bold text-gray-900 tracking-tight">Manage Classes</h1>
+            <p className="text-gray-600 mt-2 text-base font-medium">
               {classes.length} {classes.length === 1 ? 'class' : 'classes'}
-              <span className="mx-1.5 text-gray-300">•</span>
-              {totalStudents} students
+              <span className="mx-2 text-gray-300">•</span>
+              {totalStudents} total students
             </p>
           </div>
 
-          <div className="flex gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
             {isReorderMode ? (
               <>
-                <Button variant="secondary" size="sm" onClick={exitReorderMode} icon={X} className="flex-1 sm:flex-none">
-                  Cancel
-                </Button>
-                <Button size="sm" onClick={saveOrder} loading={savingOrder} icon={Save} className="flex-1 sm:flex-none">
-                  Save Order
-                </Button>
+                <Button variant="secondary" size="sm" onClick={exitReorderMode} icon={X}>Cancel</Button>
+                <Button size="sm" onClick={saveOrder} loading={savingOrder} icon={Save}>Save Order</Button>
               </>
             ) : (
               <>
-                <Button
-                  variant="secondary"
-                  size="sm"
-                  icon={ListOrdered}
-                  onClick={enterReorderMode}
-                  disabled={classes.length < 2}
-                  className="flex-1 sm:flex-none"
-                >
-                  Reorder
-                </Button>
-                <Link to="/admin/create-class" className="flex-1 sm:flex-none">
-                  <Button size="sm" icon={FolderPlus} fullWidth>Create Class</Button>
+                <div className="relative w-48 sm:w-64">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 w-4 h-4 pointer-events-none" />
+                  <input
+                    type="text"
+                    placeholder="Search for a student..."
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    className="w-full pl-10 pr-3 py-2.5 bg-white border-2 border-gray-200 rounded-lg text-sm font-medium
+                               focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                  />
+                  {fetchingStudents && (
+                    <RefreshCw className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-blue-500 animate-spin" />
+                  )}
+                </div>
+                <Button variant="secondary" size="sm" icon={ListOrdered} onClick={enterReorderMode} disabled={classes.length < 2}>Reorder</Button>
+                <Link to="/admin/create-class">
+                  <Button size="sm" icon={FolderPlus}>Create Class</Button>
                 </Link>
               </>
             )}
@@ -470,92 +539,85 @@ const ManageClasses = () => {
 
         {/* ---------- Low attendance ---------- */}
         {!isReorderMode && (
-          <div className="mb-4 bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+          <div className="mb-6 bg-white rounded-xl border-2 border-gray-200 shadow-sm overflow-hidden">
             <button
               onClick={() => toggleGlobalAtt(!showGlobalLowAtt)}
-              className="w-full p-3.5 sm:p-4 flex items-center justify-between gap-3 hover:bg-gray-50 transition-colors text-left"
+              className="w-full p-4 sm:p-5 flex items-center justify-between gap-3 hover:bg-gray-50 transition-colors text-left"
             >
-              <div className="flex items-center gap-3 min-w-0">
-                <div className="w-9 h-9 bg-red-50 rounded-lg flex items-center justify-center shrink-0">
-                  <AlertTriangle className="w-[18px] h-[18px] text-red-600" />
+              <div className="flex items-center gap-4 min-w-0">
+                <div className="w-12 h-12 bg-red-100 rounded-xl flex items-center justify-center shrink-0 shadow-sm">
+                  <AlertTriangle className="w-6 h-6 text-red-600" />
                 </div>
                 <div className="min-w-0">
-                  <h2 className="font-semibold text-gray-900 text-sm">Students below 75%</h2>
-                  <p className="text-xs text-gray-500 truncate">
-                    {hasFetchedGlobal ? 'Across all classes' : 'Tap to check all classes'}
+                  <h2 className="font-bold text-gray-900 text-base">Students Below 75% Attendance</h2>
+                  <p className="text-sm text-gray-600 font-medium truncate">
+                    {hasFetchedGlobal ? 'Across all classes' : 'Click to scan all classes'}
                   </p>
                 </div>
               </div>
-              <div className="flex items-center gap-2 shrink-0">
+              <div className="flex items-center gap-3 shrink-0">
                 {hasFetchedGlobal && !loadingGlobal && (
-                  <span className={`px-2 py-0.5 text-xs font-bold rounded-full text-white ${
+                  <span className={`px-3 py-1 text-sm font-bold rounded-full text-white shadow-sm ${
                     globalLowAtt.length > 0 ? 'bg-red-500' : 'bg-emerald-500'
                   }`}>
                     {globalLowAtt.length}
                   </span>
                 )}
-                {showGlobalLowAtt
-                  ? <ChevronUp className="w-5 h-5 text-gray-400" />
-                  : <ChevronDown className="w-5 h-5 text-gray-400" />}
+                {showGlobalLowAtt ? <ChevronUp className="w-6 h-6 text-gray-400" /> : <ChevronDown className="w-6 h-6 text-gray-400" />}
               </div>
             </button>
 
             {showGlobalLowAtt && (
-              <div className="border-t border-gray-100">
+              <div className="border-t-2 border-gray-100">
                 {loadingGlobal ? (
-                  <div className="py-8 flex flex-col items-center gap-2 text-gray-500">
-                    <RefreshCw className="w-5 h-5 animate-spin text-red-500" />
-                    <span className="text-sm">Checking classes...</span>
+                  <div className="py-12 flex flex-col items-center gap-3 text-gray-500">
+                    <RefreshCw className="w-6 h-6 animate-spin text-red-500" />
+                    <span className="text-sm font-medium">Scanning all classes...</span>
                   </div>
                 ) : globalLowAtt.length === 0 ? (
-                  <div className="py-8 px-4 text-center">
-                    <div className="w-11 h-11 bg-emerald-50 rounded-full flex items-center justify-center mx-auto mb-2">
-                      <UserCheck className="w-5 h-5 text-emerald-600" />
+                  <div className="py-12 px-4 text-center">
+                    <div className="w-16 h-16 bg-emerald-100 rounded-full flex items-center justify-center mx-auto mb-3">
+                      <UserCheck className="w-8 h-8 text-emerald-600" />
                     </div>
-                    <p className="text-emerald-700 font-medium text-sm">No student is below 75%</p>
-                    <div className="flex items-center justify-center gap-4 mt-3">
-                      <button onClick={() => fetchGlobalLowAttendance(true)} className="text-xs text-gray-500 hover:text-gray-700 underline">
-                        Re-check
-                      </button>
-                      <button onClick={handleRebuildStats} disabled={rebuilding} className="text-xs text-gray-500 hover:text-gray-700 underline disabled:opacity-50">
+                    <p className="text-emerald-700 font-bold text-base mb-1">All Clear!</p>
+                    <p className="text-gray-600 text-sm mb-4">No students are below 75% attendance</p>
+                    <div className="flex items-center justify-center gap-4">
+                      <button onClick={() => fetchGlobalLowAttendance(true)} className="text-sm text-gray-600 hover:text-gray-900 underline font-medium">Re-check</button>
+                      <button onClick={handleRebuildStats} disabled={rebuilding} className="text-sm text-gray-600 hover:text-gray-900 underline font-medium disabled:opacity-50">
                         {rebuilding ? 'Rebuilding...' : 'Rebuild totals'}
                       </button>
                     </div>
                   </div>
                 ) : (
                   <>
-                    <div className="flex items-center justify-between gap-2 px-3.5 sm:px-4 py-2.5 bg-gray-50 border-b border-gray-100">
-                      <p className="text-xs text-gray-600">
-                        <span className="font-semibold text-red-600">{globalLowAtt.length}</span> student{globalLowAtt.length > 1 ? 's' : ''} need attention
+                    <div className="flex items-center justify-between gap-2 px-4 sm:px-5 py-3 bg-gray-50 border-b-2 border-gray-100">
+                      <p className="text-sm text-gray-700 font-medium">
+                        <span className="font-bold text-red-600">{globalLowAtt.length}</span> student{globalLowAtt.length > 1 ? 's' : ''} need attention
                       </p>
                       <div className="flex items-center gap-3">
-                        <button onClick={() => fetchGlobalLowAttendance(true)} className="text-xs text-gray-500 hover:text-gray-700 inline-flex items-center gap-1">
-                          <RefreshCw className="w-3 h-3" /> Re-check
+                        <button onClick={() => fetchGlobalLowAttendance(true)} className="text-sm text-gray-600 hover:text-gray-900 inline-flex items-center gap-1.5 font-medium">
+                          <RefreshCw className="w-3.5 h-3.5" /> Re-check
                         </button>
-                        <Button size="sm" variant="secondary" icon={Download} onClick={handleExportGlobal}>
-                          Export
-                        </Button>
+                        <Button size="sm" variant="secondary" icon={Download} onClick={handleExportGlobal}>Export</Button>
                       </div>
                     </div>
 
-                    <div className="max-h-80 overflow-y-auto divide-y divide-gray-100">
+                    <div className="max-h-96 overflow-y-auto divide-y-2 divide-gray-100">
                       {globalLowAtt.map((s, idx) => (
-                        <div key={s.id} className="flex items-center gap-3 px-3.5 sm:px-4 py-2.5 hover:bg-gray-50">
-                          <span className="text-xs text-gray-400 w-5 shrink-0">{idx + 1}</span>
+                        <div key={s.id} className="flex items-center gap-4 px-4 sm:px-5 py-3 hover:bg-gray-50 transition-colors">
+                          <span className="text-sm text-gray-400 font-semibold w-6 shrink-0">{idx + 1}</span>
                           <div className="min-w-0 flex-1">
-                            <p className="text-sm font-medium text-gray-900 truncate">{s.name}</p>
-                            <p className="text-xs text-gray-500 truncate">
-                              {s.studentId} <span className="text-gray-300">•</span> {s.className}
+                            <p className="text-sm font-bold text-gray-900 truncate">{s.name}</p>
+                            <p className="text-xs text-gray-600 truncate font-medium">
+                              {s.studentId} <span className="text-gray-300 mx-1">•</span> {s.className}
                             </p>
                           </div>
                           <div className="text-right shrink-0">
-                            <span className={`text-sm font-bold ${s.stats.percentage < 50 ? 'text-red-600' : 'text-orange-500'}`}>
-                              {s.stats.percentage}%
-                            </span>
-                            <p className="text-[11px] text-gray-400">{s.stats.present}/{s.stats.total}</p>
+                            <span className={`text-base font-bold ${s.stats.percentage < 50 ? 'text-red-600' : 'text-orange-500'}`}>{s.stats.percentage}%</span>
+                            <p className="text-xs text-gray-500 font-medium">{s.stats.present}/{s.stats.total}</p>
                           </div>
-                          <Link to={`/student/details/${s.id}`} className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg shrink-0">
-                            <Eye className="w-4 h-4" />
+                          <Link to={`/student/details/${s.id}`} className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg shrink-0 transition-colors">
+                            <Eye className="w-5 h-5" />
                           </Link>
                         </div>
                       ))}
@@ -567,66 +629,38 @@ const ManageClasses = () => {
           </div>
         )}
 
-        {/* ---------- Search ---------- */}
-        {!isReorderMode && (
-          <div className="relative mb-4">
-            <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400 w-[18px] h-[18px] pointer-events-none" />
-            <input
-              type="text"
-              placeholder="Find a student by name or ID..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full pl-11 pr-10 py-2.5 bg-white border border-gray-200 rounded-xl text-sm shadow-sm
-                         focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
-            />
-            {fetchingStudents && (
-              <RefreshCw className="absolute right-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-blue-500 animate-spin" />
-            )}
-            {!fetchingStudents && searchTerm && (
-              <button
-                onClick={() => setSearchTerm('')}
-                aria-label="Clear search"
-                className="absolute right-3 top-1/2 -translate-y-1/2 p-1 text-gray-400 hover:text-gray-600 rounded-full hover:bg-gray-100"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            )}
-          </div>
-        )}
-
         {isReorderMode && (
-          <div className="mb-4 flex items-start gap-2.5 p-3 bg-amber-50 border border-amber-200 rounded-xl">
-            <GripVertical className="w-4 h-4 text-amber-600 mt-0.5 shrink-0" />
-            <p className="text-sm text-amber-800">
-              Drag classes into the order you want. It applies everywhere in the app.
-            </p>
+          <div className="mb-6 flex items-start gap-3 p-4 bg-amber-50 border-2 border-amber-200 rounded-xl">
+            <GripVertical className="w-5 h-5 text-amber-600 mt-0.5 shrink-0" />
+            <p className="text-sm text-amber-800 font-medium">Drag classes to reorder them. The new order will be reflected throughout the application.</p>
           </div>
         )}
 
-        {/* ---------- List ---------- */}
+        {/* ---------- Grid List with 5 columns ---------- */}
         {loading ? (
-          <ClassListSkeleton />
+          <ClassGridSkeleton />
         ) : classes.length === 0 ? (
-          <div className="bg-white rounded-xl border border-gray-200 text-center py-14 px-4">
-            <div className="w-14 h-14 bg-orange-50 rounded-2xl flex items-center justify-center mx-auto mb-4">
-              <Layers className="w-7 h-7 text-orange-500" />
+          <div className="bg-white rounded-xl border-2 border-gray-200 text-center py-16 px-4">
+            <div className="w-20 h-20 bg-orange-100 rounded-2xl flex items-center justify-center mx-auto mb-4">
+              <Layers className="w-10 h-10 text-orange-500" />
             </div>
-            <h3 className="text-base font-semibold text-gray-900 mb-1">No classes yet</h3>
-            <p className="text-gray-500 mb-6 text-sm">Create your first class to start adding students</p>
+            <h3 className="text-lg font-bold text-gray-900 mb-2">No Classes Yet</h3>
+            <p className="text-gray-600 mb-6 text-sm">Create your first class to start managing students and attendance</p>
             <Link to="/admin/create-class">
-              <Button icon={FolderPlus}>Create Class</Button>
+              <Button icon={FolderPlus}>Create Your First Class</Button>
             </Link>
           </div>
         ) : displayList.length === 0 ? (
-          <div className="bg-white rounded-xl border border-gray-200 text-center py-14 px-4">
-            <Search className="w-10 h-10 text-gray-300 mx-auto mb-3" />
-            <h3 className="text-gray-900 font-medium mb-1">No students matched</h3>
-            <p className="text-gray-500 text-sm">Try a different name or ID</p>
+          <div className="bg-white rounded-xl border-2 border-gray-200 text-center py-16 px-4">
+            <Search className="w-12 h-12 text-gray-300 mx-auto mb-4" />
+            <h3 className="text-gray-900 font-bold text-lg mb-2">No Matches Found</h3>
+            <p className="text-gray-600 text-sm">Try searching with a different student name or ID</p>
           </div>
         ) : (
           <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
-            <SortableContext items={displayList.map(c => c.id)} strategy={verticalListSortingStrategy}>
-              <div className="space-y-2.5">
+            <SortableContext items={displayList.map(c => c.id)} strategy={rectSortingStrategy}>
+              {/* ✅ 5 COLUMN GRID */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-4">
                 {displayList.map((cls, index) => (
                   <SortableClassCard
                     key={cls.id}

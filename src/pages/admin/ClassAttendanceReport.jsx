@@ -1,7 +1,7 @@
 // src/pages/admin/ClassAttendanceReport.jsx
 
 import React, { useState, useEffect } from 'react';
-import { useParams, Link } from 'react-router-dom';
+import { useParams, Link, useNavigate } from 'react-router-dom'; // ✅ Added useNavigate
 import { ArrowLeft, Download, Calendar, Smartphone } from 'lucide-react';
 import { getStudentsByClass, getClassAttendance, getClassById } from '../../firebase/services';
 import { createCRAttendanceExcel } from '../../utils/excelUtils';
@@ -14,6 +14,7 @@ import toast from 'react-hot-toast';
 
 const ClassAttendanceReport = () => {
   const { classId } = useParams();
+  const navigate = useNavigate(); // ✅ For teacher back button
   const { currentUser } = useAuth();
   const [students, setStudents] = useState([]);
   const [logs, setLogs] = useState([]);
@@ -21,7 +22,10 @@ const ClassAttendanceReport = () => {
   const [loading, setLoading] = useState(true);
 
   const isStudent = currentUser?.role === 'student';
-  const backLink = isStudent ? '/student/dashboard' : '/admin/classes';
+  const isTeacher = currentUser?.role === 'teacher'; // ✅
+
+  // ✅ If student or teacher, go back in history. Admin goes to manage classes.
+  const backLink = isStudent ? '/student/dashboard' : isTeacher ? -1 : '/admin/classes';
 
   useEffect(() => { fetchData(); }, [classId]);
 
@@ -66,7 +70,6 @@ const ClassAttendanceReport = () => {
     return total > 0 ? Math.round((present / total) * 100) : 0;
   };
 
-  // Get latest date status for mobile view
   const getLatestDateStatus = (studentId) => {
     const dates = getUniqueDates();
     if (dates.length === 0) return '-';
@@ -86,13 +89,15 @@ const ClassAttendanceReport = () => {
           {/* Header */}
           <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
             <div>
+              {/* ✅ Updated Back Link Logic */}
               <Link to={backLink} className="inline-flex items-center text-gray-600 mb-2 text-sm">
                 <ArrowLeft className="w-4 h-4 mr-1" /> Back
               </Link>
-              <h1 className="text-xl sm:text-2xl font-bold text-gray-800">Class Attendance Report</h1>
+              <h1 className="text-xl sm:text-2xl font-bold text-gray-800">CR Attendance Report</h1>
               <p className="text-gray-600 text-sm">
                 {classData?.name || 'Loading...'} • Attendance taken by CRs
                 {isStudent && <span className="ml-2 text-indigo-600 font-medium">(CR View)</span>}
+                {isTeacher && <span className="ml-2 text-blue-600 font-medium">(Teacher View)</span>}
               </p>
             </div>
             <Button icon={Download} size="sm" onClick={handleExport}>Export Excel</Button>
@@ -134,12 +139,9 @@ const ClassAttendanceReport = () => {
             </Card>
           ) : (
             <>
-              {/* ════════════════════════════════════════════ */}
-              {/* MOBILE VIEW: S.No, ID, Latest Date, Total  */}
-              {/* ════════════════════════════════════════════ */}
+              {/* MOBILE VIEW */}
               <div className="block md:hidden">
                 <Card className="overflow-hidden p-0">
-                  {/* Mobile header info */}
                   <div className="bg-indigo-50 px-4 py-2 border-b flex items-center gap-2">
                     <Smartphone className="w-4 h-4 text-indigo-500" />
                     <p className="text-xs text-indigo-600">
@@ -158,7 +160,6 @@ const ClassAttendanceReport = () => {
                             <div className="text-[10px] text-gray-400 font-normal">(Latest)</div>
                           </th>
                           <th className="px-3 py-3 border-b text-center text-xs font-semibold text-gray-600">Total</th>
-                          {/* <th className="px-3 py-3 border-b text-center text-xs font-semibold text-gray-600">%</th> */}
                         </tr>
                       </thead>
                       <tbody>
@@ -185,13 +186,6 @@ const ClassAttendanceReport = () => {
                               <td className="px-3 py-2.5 text-center">
                                 <span className="text-xs font-bold text-blue-700">{present}/{total}</span>
                               </td>
-                              {/* <td className="px-3 py-2.5 text-center">
-                                <span className={`text-xs font-bold ${
-                                  pct >= 75 ? 'text-green-600' : pct >= 50 ? 'text-yellow-600' : 'text-red-600'
-                                }`}>
-                                  {pct}%
-                                </span>
-                              </td> */}
                             </tr>
                           );
                         })}
@@ -201,39 +195,21 @@ const ClassAttendanceReport = () => {
                 </Card>
               </div>
 
-              {/* ════════════════════════════════════════════ */}
-              {/* DESKTOP VIEW: Full scrollable table         */}
-              {/* ════════════════════════════════════════════ */}
+              {/* DESKTOP VIEW */}
               <div className="hidden md:block">
                 <Card className="overflow-hidden p-0">
                   <div className="overflow-x-auto">
                     <table className="w-full text-sm text-left whitespace-nowrap">
                       <thead className="bg-gray-100 text-gray-700 font-semibold">
                         <tr>
-                          {/* S.No - Sticky */}
-                          <th className="p-3 border-b sticky left-0 bg-gray-100 z-20 w-12 text-center">
-                            S.No
-                          </th>
-                          {/* ID - Sticky */}
-                          <th className="p-3 border-b sticky left-12 bg-gray-100 z-20 w-28 min-w-[112px]">
-                            ID
-                          </th>
-                          {/* Name - Sticky */}
-                          <th className="p-3 border-b sticky left-40 bg-gray-100 z-20 w-44 min-w-[176px]">
-                            Name
-                          </th>
-                          {/* Date columns - Scrollable */}
+                          <th className="p-3 border-b sticky left-0 bg-gray-100 z-20 w-12 text-center">S.No</th>
+                          <th className="p-3 border-b sticky left-12 bg-gray-100 z-20 w-28 min-w-[112px]">ID</th>
+                          <th className="p-3 border-b sticky left-40 bg-gray-100 z-20 w-44 min-w-[176px]">Name</th>
                           {dates.map(d => (
                             <th key={d} className="p-3 border-b text-center min-w-[90px]">{d}</th>
                           ))}
-                          {/* Total - Sticky right */}
-                          <th className="p-3 border-b text-center bg-blue-50 sticky right-16 z-20 min-w-[70px] border-l">
-                            Total
-                          </th>
-                          {/* % - Sticky right */}
-                          <th className="p-3 border-b text-center bg-blue-50 sticky right-0 z-20 min-w-[60px] border-l">
-                            %
-                          </th>
+                          <th className="p-3 border-b text-center bg-blue-50 sticky right-16 z-20 min-w-[70px] border-l">Total</th>
+                          <th className="p-3 border-b text-center bg-blue-50 sticky right-0 z-20 min-w-[60px] border-l">%</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -243,19 +219,9 @@ const ClassAttendanceReport = () => {
 
                           return (
                             <tr key={stu.id} className="border-b hover:bg-gray-50">
-                              {/* S.No - Sticky */}
-                              <td className="p-3 text-center text-gray-500 sticky left-0 bg-white z-10 border-r">
-                                {index + 1}
-                              </td>
-                              {/* ID - Sticky */}
-                              <td className="p-3 font-medium text-gray-900 sticky left-12 bg-white z-10">
-                                {stu.studentId}
-                              </td>
-                              {/* Name - Sticky */}
-                              <td className="p-3 text-gray-700 sticky left-40 bg-white z-10 border-r">
-                                {stu.name}
-                              </td>
-                              {/* Date cells - Scrollable */}
+                              <td className="p-3 text-center text-gray-500 sticky left-0 bg-white z-10 border-r">{index + 1}</td>
+                              <td className="p-3 font-medium text-gray-900 sticky left-12 bg-white z-10">{stu.studentId}</td>
+                              <td className="p-3 text-gray-700 sticky left-40 bg-white z-10 border-r">{stu.name}</td>
                               {dates.map(d => (
                                 <td key={d} className="p-3 text-center">
                                   <span className={`inline-block px-2 py-1 rounded text-xs font-bold ${
@@ -267,11 +233,7 @@ const ClassAttendanceReport = () => {
                                   </span>
                                 </td>
                               ))}
-                              {/* Total - Sticky right */}
-                              <td className="p-3 text-center font-bold text-blue-700 bg-blue-50 sticky right-16 z-10 border-l">
-                                {present}/{total}
-                              </td>
-                              {/* % - Sticky right */}
+                              <td className="p-3 text-center font-bold text-blue-700 bg-blue-50 sticky right-16 z-10 border-l">{present}/{total}</td>
                               <td className={`p-3 text-center font-bold bg-blue-50 sticky right-0 z-10 border-l ${
                                 pct >= 75 ? 'text-green-600' : pct >= 50 ? 'text-yellow-600' : 'text-red-600'
                               }`}>

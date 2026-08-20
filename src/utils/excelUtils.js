@@ -193,13 +193,21 @@ export const validateStudentExcelData = (data) => {
 };
 
 
+// ... [Keep all previous code in excelUtils.js the same] ...
+
 /**
  * Create attendance Excel file
  * Generates 2 Sheets:
  * 1. Attendance Sheet (Matrix): ID, Name, [Dates...], Total Classes, Total Labs, Grand Total, Percentage
  * 2. Detailed: List of individual records sorted by Name (then Date)
+ * 
+ * @param {Array} attendanceData - Records Array
+ * @param {String} subjectName 
+ * @param {String} className 
+ * @param {Object} dateCapacities 
+ * @param {Array} studentsData - UI Students array to maintain exact UI order
  */
-export const createAttendanceExcel = (attendanceData, subjectName, className, dateCapacities = {}) => {
+export const createAttendanceExcel = (attendanceData, subjectName, className, dateCapacities = {}, studentsData = []) => {
   // --- STEP 1: Analyze Dates and Get Session Capacities from parameter ---
 
   // Get unique dates sorted
@@ -225,6 +233,7 @@ export const createAttendanceExcel = (attendanceData, subjectName, className, da
     if (!studentMap.has(record.oderId)) {
       studentMap.set(record.oderId, {
         id: record.studentId,
+        oderId: record.oderId, // ✅ Added to match with UI array
         name: record.studentName,
         records: {}, // Key: date, Value: { status, count, sessionType }
         totalAttended: 0,   // Sum of counts where present
@@ -283,7 +292,20 @@ export const createAttendanceExcel = (attendanceData, subjectName, className, da
   const matrixRows = [];
   const students = Array.from(studentMap.values());
 
-  students.sort((a, b) => a.id.localeCompare(b.id));
+  // ✅ Sort students to exactly match the UI order if studentsData is provided
+  if (studentsData && studentsData.length > 0) {
+    const orderMap = new Map();
+    studentsData.forEach((s, idx) => orderMap.set(s.id, idx));
+    
+    students.sort((a, b) => {
+      const idxA = orderMap.has(a.oderId) ? orderMap.get(a.oderId) : 999999;
+      const idxB = orderMap.has(b.oderId) ? orderMap.get(b.oderId) : 999999;
+      return idxA - idxB;
+    });
+  } else {
+    // Fallback to sorting by ID if no UI array is passed
+    students.sort((a, b) => a.id.localeCompare(b.id));
+  }
 
   students.forEach(student => {
     const row = [student.id, student.name];
@@ -315,7 +337,7 @@ export const createAttendanceExcel = (attendanceData, subjectName, className, da
   });
 
   // --- STEP 5: BUILD SHEET 2 (DETAILED) ---
-
+  // (Kept the same as your original code)
   const detailedData = [];
   const sortedData = [...attendanceData].sort((a, b) => {
     const nameCompare = a.studentName.localeCompare(b.studentName);
@@ -358,6 +380,8 @@ export const createAttendanceExcel = (attendanceData, subjectName, className, da
 
   return fileName;
 };
+
+// ... [Keep all remaining code in excelUtils.js the same] ...
 
 /**
  * Create sample Excel template for student upload

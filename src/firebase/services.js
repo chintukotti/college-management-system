@@ -161,6 +161,8 @@ export const logoutUser = async (role) => {
   }
 };
 
+// ... [Keep all previous code in services.js the same] ...
+
 export const registerTeachersFromExcel = async (teachersData, createdBy) => {
   try {
     const created = [];
@@ -197,8 +199,8 @@ export const registerTeachersFromExcel = async (teachersData, createdBy) => {
       const name = teacher.name?.trim();
       const password = (teacher.password || '').trim();
 
-      // Keep first occurrence, skip rest
-      if (seenEmails.has(email)) continue;
+      // BUG FIX: Only skip if it's a duplicate in this upload or in DB
+      if (duplicateInUpload.has(email)) continue;
       if (existingSet.has(email)) continue;
 
       // Validate
@@ -250,6 +252,8 @@ export const registerTeachersFromExcel = async (teachersData, createdBy) => {
     return { success: false, error: error.message };
   }
 };
+
+// ... [Keep all remaining code in services.js the same] ...
 
 // ==================== USER MANAGEMENT ====================
 
@@ -1073,6 +1077,62 @@ export const saveSessionAttendance = async ({ subjectId, classId, date, records,
     });
 
     await batch.commit();
+
+    // ✅ NEW: Send emails to absent students via Cloudflare Worker
+    const absentStudents = records
+      .filter(rec => rec.status === 'absent')
+      .map(rec => ({
+        name: rec.studentName,
+        email: `${rec.studentId.toLowerCase()}@rguktsklm.ac.in`
+      }));
+
+    if (absentStudents.length > 0 && process.env.REACT_APP_WORKER_URL) {
+      console.log(`📝 Attempting to send emails to ${absentStudents.length} absent students...`);
+      console.log("Student Data being sent:", absentStudents);
+      
+      try {
+        const response = await fetch(process.env.REACT_APP_WORKER_URL, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Secret-Key': process.env.REACT_APP_WORKER_SECRET
+          },
+          body: JSON.stringify({
+            students: absentStudents,
+            meta: {
+              subjectName: meta.subjectName,
+              date: date,
+              time: meta.time,
+              teacherName: meta.teacherName
+            }
+          })
+        });
+        
+        const data = await response.json();
+        console.log("✅ Cloudflare Worker Response:", data);
+
+        // If Brevo rejected the emails, this will print the EXACT reason why!
+        if (data.details) {
+          data.details.forEach(d => {
+            if (!d.success) {
+              console.error(`❌ Failed to send to ${d.email}. Brevo Error:`, d.brevoError);
+            }
+          });
+        } else if (!data.success) {
+          console.error("❌ Worker Error:", data.error);
+        }
+
+      } catch (emailError) {
+        console.error("🚨 Network error calling Cloudflare Worker:", emailError);
+      }
+    } else {
+      if (absentStudents.length === 0) {
+        console.log("ℹ️ No absent students found, no emails sent.");
+      } else if (!process.env.REACT_APP_WORKER_URL) {
+        console.warn("⚠️ REACT_APP_WORKER_URL is missing in your .env file!");
+      }
+    }
+    // --- END NEW CODE ---
 
     // 2. Subject document — once for the whole session, not once per student
     await updateDoc(doc(db, 'subjects', subjectId), {

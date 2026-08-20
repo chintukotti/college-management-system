@@ -141,17 +141,22 @@ const ViewAttendanceSheet = () => {
     }
   };
 
+  // ... [Keep all previous code in ViewAttendanceSheet.jsx the same] ...
+
   const handleDownload = () => {
     setDownloading(true);
     try {
       const dateCapacities = subject?.dateCapacities?.[classId] || {};
-      const fileName = createAttendanceExcel(attendance, subject?.name || 'Subject', classData?.name || 'Class', dateCapacities);
+      // ✅ Pass `students` array so Excel rows match the UI order
+      const fileName = createAttendanceExcel(attendance, subject?.name || 'Subject', classData?.name || 'Class', dateCapacities, students);
       toast.success(`Downloaded: ${fileName}`);
     } catch (error) {
       toast.error('Failed to download');
     }
     setDownloading(false);
   };
+
+// ... [Keep all remaining code in ViewAttendanceSheet.jsx the same] ...
 
   const getDateCapacity = (date) => {
     const fromSubject = subject?.dateCapacities?.[classId]?.[date];

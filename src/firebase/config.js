@@ -11,15 +11,14 @@ import {
 import { getMessaging, isSupported } from 'firebase/messaging';
 
 const firebaseConfig = {
-  apiKey: "AIzaSyCumTvMAncI1nJgK517NtQ0ma5hQdfFOF4",
-  authDomain: "cm-system-c3de7.firebaseapp.com",
-  projectId: "cm-system-c3de7",
-  storageBucket: "cm-system-c3de7.firebasestorage.app",
-  messagingSenderId: "765093265855",
-  appId: "1:765093265855:web:64a76cdb149908aab3610a",
-  measurementId: "G-4TV6R81PB8"
+  apiKey: "AIzaSyBPD3hNLrJk-bfNzBeSxc4Q00dwqkOuLvI",
+  authDomain: "cm-system-kt.firebaseapp.com",
+  projectId: "cm-system-kt",
+  storageBucket: "cm-system-kt.firebasestorage.app",
+  messagingSenderId: "935944326232",
+  appId: "1:935944326232:web:c2dcc6eda35806cbcd0e2d",
+  measurementId: "G-7CK0LTVVP2"
 };
-
 const app = initializeApp(firebaseConfig);
 
 // Secondary app: lets an admin create accounts without being signed out of
