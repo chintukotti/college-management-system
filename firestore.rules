@@ -1,0 +1,184 @@
+rules_version = '2';
+
+// Firestore security rules — College Management System
+//
+// READ THIS BEFORE DEPLOYING.
+//
+// These rules are the strongest enforcement the CURRENT auth model allows.
+// They are not the strongest rules possible, because two things in the app
+// architecture put a hard ceiling on what any rule can enforce:
+//
+//   1. Students do not have real accounts. `loginUser()` signs the browser in
+//      ANONYMOUSLY, reads users/{studentId}, and compares the password field
+//      in JavaScript. So every student shares one indistinguishable identity:
+//      request.auth.uid is a random anonymous id with no link to a student.
+//      No rule can express "this student" — only "somebody, anybody".
+//
+//   2. Student passwords are stored as a plaintext field on the user document.
+//      Rules grant or deny whole documents, never single fields. Any rule that
+//      lets login read users/{studentId} also hands over that password.
+//
+// Consequence: everything below genuinely protects staff data and write paths.
+// Student-record confidentiality is NOT solved here and cannot be until the
+// auth model changes. See SECURITY.md for the migration that fixes it.
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ---------- helpers ----------
+
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    // Teachers and admins hold real email/password accounts, so their uid is a
+    // trustworthy identity and their role can be looked up server-side.
+    // Anonymous (student) sessions never satisfy this.
+    function staff() {
+      return signedIn() && request.auth.token.firebase.sign_in_provider == 'password';
+    }
+
+    function roleOf(uid) {
+      return get(/databases/$(database)/documents/users/$(uid)).data.role;
+    }
+
+    function isAdmin() {
+      return staff() &&
+             exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+             roleOf(request.auth.uid) == 'admin';
+    }
+
+    function isTeacher() {
+      return staff() &&
+             exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+             roleOf(request.auth.uid) == 'teacher';
+    }
+
+    // Fields changed by this write, ignoring fields left untouched.
+    function changedKeys() {
+      return request.resource.data.diff(resource.data).affectedKeys();
+    }
+
+    // ---------- users ----------
+    //
+    // `list` SHOULD be staff-only. It is not, and that is the single most
+    // valuable thing to fix in this app.
+    //
+    // Class representatives take attendance from a student (anonymous) session,
+    // and that page calls getStudentsByClass() — a query over users. The roster
+    // exists nowhere else, so denying `list` to anonymous sessions breaks CR
+    // attendance outright. Because a query returns whole documents, and the
+    // password lives on those documents, allowing that query also allows any
+    // anonymous visitor to page through all 1,500 students and read every
+    // password.
+    //
+    // The fix is to get the password off this document — see SECURITY.md,
+    // "Fix 1". Once passwords live in their own get-only collection, this line
+    // becomes `allow list: if signedIn();` with nothing sensitive behind it,
+    // and with real student accounts it tightens further to `staff()`.
+    match /users/{userId} {
+      allow get: if signedIn();
+      allow list: if signedIn();
+
+      allow create: if isAdmin();
+
+      // Change Password (student, anonymous): allowed, but the write may touch
+      // nothing except the password field. Without this clamp the same opening
+      // would let an anonymous client rewrite `role` and mint itself an admin.
+      allow update: if isAdmin()
+                    || (signedIn() && changedKeys().hasOnly(['password']));
+
+      allow delete: if isAdmin();
+    }
+
+    // ---------- classes ----------
+    //
+    // Teachers write here because attendance rollups live on the class document
+    // (attendanceStats). Students read only.
+    match /classes/{classId} {
+      allow read: if signedIn();
+      allow create, delete: if isAdmin();
+      allow update: if isAdmin() || isTeacher();
+    }
+
+    // ---------- subjects ----------
+    match /subjects/{subjectId} {
+      allow read: if signedIn();
+      allow create, delete: if isAdmin();
+      // Teachers update classDates as they save attendance sessions.
+      allow update: if isAdmin() || isTeacher();
+    }
+
+    // ---------- semesters ----------
+    match /semesters/{semesterId} {
+      allow read: if signedIn();
+      allow write: if isAdmin();
+    }
+
+    // ---------- attendance (teacher-recorded) ----------
+    //
+    // Writes are staff-only, which is enforceable because teachers hold real
+    // accounts. Reads stay open to signed-in sessions: a student must be able
+    // to read their own records, and with anonymous auth there is no way to
+    // tell one student from another.
+    match /attendance/{recordId} {
+      allow read: if signedIn();
+      allow write: if isAdmin() || isTeacher();
+    }
+
+    // ---------- classAttendance (CR-recorded) ----------
+    //
+    // WEAKEST RULE IN THIS FILE, unavoidably. Class representatives are
+    // students, so they write under anonymous auth. `crIds` on the class
+    // document says who the CRs are, but the rule cannot check it — there is no
+    // identity in the request to compare against. Any anonymous session can
+    // therefore write class attendance.
+    //
+    // Fixing this requires real student accounts (see SECURITY.md); the rule
+    // then becomes:
+    //   allow write: if request.auth.uid in
+    //     get(/databases/$(database)/documents/classes/$(request.resource.data.classId)).data.crIds;
+    match /classAttendance/{recordId} {
+      allow read: if signedIn();
+      allow write: if signedIn();
+    }
+
+    // ---------- announcements ----------
+    match /announcements/{announcementId} {
+      allow read: if signedIn();
+      allow write: if isAdmin() || isTeacher();
+    }
+
+    // ---------- teacherActivity ----------
+    // A teacher's own activity log; admins may review any of them.
+    match /teacherActivity/{activityId} {
+      allow read: if isAdmin()
+                  || (isTeacher() && resource.data.teacherId == request.auth.uid);
+      allow create: if isTeacher()
+                    && request.resource.data.teacherId == request.auth.uid;
+      allow update, delete: if isAdmin()
+                            || (isTeacher() && resource.data.teacherId == request.auth.uid);
+    }
+
+    // ---------- contactMessages ----------
+    //
+    // The contact form is on a public page, so anyone may submit. Nobody but an
+    // admin may read them back — previously these were world-readable, which
+    // exposed every name, email and message left on the site.
+    match /contactMessages/{messageId} {
+      allow create: if true;
+      allow read, update, delete: if isAdmin();
+    }
+
+    // ---------- fcmTokens ----------
+    match /fcmTokens/{tokenId} {
+      allow read: if isAdmin();
+      allow write: if signedIn();
+    }
+
+    // Anything not matched above is denied.
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
