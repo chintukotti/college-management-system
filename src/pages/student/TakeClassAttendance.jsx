@@ -67,7 +67,14 @@ const TakeClassAttendance = () => {
 
     let res;
     if (existingRecord) {
-      res = await updateClassAttendance(existingRecord.id, records);
+      // ✅ Pass currentUser.uid and currentUser.name to log who edited
+      res = await updateClassAttendance(
+        existingRecord.id, 
+        records, 
+        currentUser.classId, 
+        currentUser.uid, 
+        currentUser.name 
+      );
     } else {
       res = await markClassAttendance(currentUser.classId, today, records, currentUser.uid);
     }

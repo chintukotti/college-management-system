@@ -35,7 +35,7 @@ import {
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 
-// Enhanced color themes for cards
+// Enhanced color themes for cards - EXACTLY 5 COLORS
 const ACCENTS = [
   { 
     bar: 'bg-gradient-to-br from-orange-500 to-orange-600', 
@@ -81,33 +81,6 @@ const ACCENTS = [
     icon: 'bg-rose-100 text-rose-600',
     text: 'text-rose-700',
     badge: 'bg-rose-100 text-rose-700'
-  },
-  { 
-    bar: 'bg-gradient-to-br from-cyan-500 to-cyan-600', 
-    bg: 'bg-gradient-to-br from-cyan-50 to-cyan-100/50',
-    border: 'border-cyan-200',
-    hover: 'hover:border-cyan-300 hover:shadow-cyan-200/50',
-    icon: 'bg-cyan-100 text-cyan-600',
-    text: 'text-cyan-700',
-    badge: 'bg-cyan-100 text-cyan-700'
-  },
-  { 
-    bar: 'bg-gradient-to-br from-amber-500 to-amber-600', 
-    bg: 'bg-gradient-to-br from-amber-50 to-amber-100/50',
-    border: 'border-amber-200',
-    hover: 'hover:border-amber-300 hover:shadow-amber-200/50',
-    icon: 'bg-amber-100 text-amber-600',
-    text: 'text-amber-700',
-    badge: 'bg-amber-100 text-amber-700'
-  },
-  { 
-    bar: 'bg-gradient-to-br from-indigo-500 to-indigo-600', 
-    bg: 'bg-gradient-to-br from-indigo-50 to-indigo-100/50',
-    border: 'border-indigo-200',
-    hover: 'hover:border-indigo-300 hover:shadow-indigo-200/50',
-    icon: 'bg-indigo-100 text-indigo-600',
-    text: 'text-indigo-700',
-    badge: 'bg-indigo-100 text-indigo-700'
   },
 ];
 
@@ -659,7 +632,7 @@ const ManageClasses = () => {
         ) : (
           <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
             <SortableContext items={displayList.map(c => c.id)} strategy={rectSortingStrategy}>
-              {/* ✅ 5 COLUMN GRID */}
+              {/* ✅ 5 COLUMN GRID WITH 5 COLORS */}
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-4">
                 {displayList.map((cls, index) => (
                   <SortableClassCard

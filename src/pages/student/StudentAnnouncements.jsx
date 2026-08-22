@@ -31,18 +31,18 @@ const StudentAnnouncements = () => {
     }
 
     const unsubscribe = subscribeToClassAnnouncements(
-      currentUser.classId,
-      (data) => {
-        processAnnouncements(data);
-        setLoading(false);
-        // A live update means anything unread has now been seen
-        localStorage.setItem('announcementLastVisited', Date.now().toString());
-      },
-      () => {
-        toast.error('Failed to load announcements');
-        setLoading(false);
-      }
-    );
+          currentUser.classId,
+          (data) => {
+            processAnnouncements(data);
+            setLoading(false);
+            // ✅ REMOVED: localStorage.setItem('announcementLastVisited', Date.now().toString());
+            // This was hiding the navbar red dot instantly. It should only be set on page mount.
+          },
+          () => {
+            toast.error('Failed to load announcements');
+            setLoading(false);
+          }
+        );
 
     return () => unsubscribe();
   }, [currentUser?.classId]);

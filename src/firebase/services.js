@@ -4,6 +4,7 @@ import { collection, doc, addDoc, getDoc, getDocs, updateDoc, deleteDoc, query, 
 import { createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, signInAnonymously } from 'firebase/auth';
 import { auth, secondaryAuth, db } from './config';
 import { TTL, keys, withCache, getCache, getCacheEntry, setCache, invalidate, invalidatePrefix, clearCache } from '../utils/cache';
+import { getAuth, reauthenticateWithCredential, EmailAuthProvider, updatePassword } from 'firebase/auth';
 
 // ==================== CACHE INVALIDATION HELPERS ====================
 
@@ -1481,34 +1482,35 @@ export const createAnnouncement = async (announcementData) => {
  * Falls back to the unordered query if the (classId, createdAt) composite index
  * has not been deployed.
  */
+/**
+ * Timestamp (ms) of the newest announcement for a class, or 0 if none.
+ *
+ * ✅ FIX: Removed orderBy to avoid requiring a composite index.
+ */
 export const getLatestAnnouncementTime = async (classId, force = false) => {
   if (!classId) return { success: true, data: 0 };
 
   return withCache(`ann:latest:${classId}`, TTL.SHORT, async () => {
     try {
+      // Query without orderBy
       const q = query(
         collection(db, 'announcements'),
-        where('classId', '==', classId),
-        orderBy('createdAt', 'desc'),
-        limit(1)
+        where('classId', '==', classId)
       );
       const snapshot = await getDocs(q);
+      
       if (snapshot.empty) return { success: true, data: 0 };
-      const seconds = snapshot.docs[0].data().createdAt?.seconds || 0;
-      return { success: true, data: seconds * 1000 };
+      
+      let latestSeconds = 0;
+      // Find the most recent timestamp in JS
+      snapshot.docs.forEach(d => {
+        const seconds = d.data().createdAt?.seconds || 0;
+        if (seconds > latestSeconds) latestSeconds = seconds;
+      });
+      
+      return { success: true, data: latestSeconds * 1000 };
     } catch (error) {
-      // Index missing — fall back to scanning the class's announcements
-      try {
-        const snapshot = await getDocs(
-          query(collection(db, 'announcements'), where('classId', '==', classId))
-        );
-        const latest = snapshot.docs.reduce(
-          (max, d) => Math.max(max, d.data().createdAt?.seconds || 0), 0
-        );
-        return { success: true, data: latest * 1000 };
-      } catch (fallbackError) {
-        return { success: false, error: fallbackError.message, data: 0 };
-      }
+      return { success: false, error: error.message, data: 0 };
     }
   }, force);
 };
@@ -1584,6 +1586,12 @@ export const subscribeToClassAnnouncements = (classId, onData, onError) => {
  * @param {Function} onTime - called with the newest announcement time in ms
  * @returns {Function} unsubscribe
  */
+/**
+ * Live "is there something new?" signal for the navbar dot.
+ *
+ * ✅ FIX: Removed orderBy to avoid requiring a composite index.
+ * It now fetches the class announcements and finds the max timestamp in JS.
+ */
 export const subscribeToLatestAnnouncement = (classId, onTime) => {
   if (!classId) {
     onTime(0);
@@ -1596,35 +1604,38 @@ export const subscribeToLatestAnnouncement = (classId, onTime) => {
   let cancelled = false;
 
   try {
+    // Query without orderBy to prevent "Missing Index" errors
     const q = query(
       collection(db, 'announcements'),
-      where('classId', '==', classId),
-      orderBy('createdAt', 'desc'),
-      limit(1)
+      where('classId', '==', classId)
     );
 
     const unsubscribe = onSnapshot(
       q,
       (snapshot) => {
         if (cancelled) return;
-        const seconds = snapshot.empty ? 0 : (snapshot.docs[0].data().createdAt?.seconds || 0);
-        const ms = seconds * 1000;
-        setCache(`ann:latest:${classId}`, ms);
-        onTime(ms);
+        
+        let latestMs = 0;
+        // Find the most recent announcement manually in JS
+        snapshot.docs.forEach(doc => {
+          const seconds = doc.data().createdAt?.seconds || 0;
+          const ms = seconds * 1000;
+          if (ms > latestMs) {
+            latestMs = ms;
+          }
+        });
+
+        setCache(`ann:latest:${classId}`, latestMs);
+        onTime(latestMs);
       },
-      async (error) => {
-        // Most likely a missing composite index — degrade to a one-off read
-        console.warn('Latest-announcement listener unavailable:', error?.message);
-        const res = await getLatestAnnouncementTime(classId);
-        if (!cancelled && res.success) onTime(res.data);
+      (error) => {
+        console.warn('Latest-announcement listener failed:', error?.message);
       }
     );
 
     return () => { cancelled = true; unsubscribe(); };
   } catch (error) {
-    getLatestAnnouncementTime(classId).then(res => {
-      if (!cancelled && res.success) onTime(res.data);
-    });
+    console.error('Error setting up announcement listener:', error);
     return () => { cancelled = true; };
   }
 };
@@ -1871,15 +1882,6 @@ export const markClassAttendance = async (classId, date, records, markedBy) => {
   }
 };
 
-export const updateClassAttendance = async (recordId, records) => {
-  try {
-    await updateDoc(doc(db, 'classAttendance', recordId), { records, updatedAt: serverTimestamp() });
-    invalidatePrefix('att:class:');
-    return { success: true };
-  } catch (error) {
-    return { success: false, error: error.message };
-  }
-};
 
 export const getClassAttendance = async (classId, force = false) => {
   return withCache(keys.classAttendance(classId), TTL.MEDIUM, async () => {
@@ -2353,6 +2355,89 @@ export const recomputeAllClassesStats = async (adminId) => {
     }
 
     return { success: true, classesDone, recordsScanned };
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
+};
+
+
+
+// ==================== TEACHER PASSWORD CHANGE ====================
+export const changeTeacherPassword = async (currentPassword, newPassword) => {
+  try {
+    const auth = getAuth();
+    const user = auth.currentUser;
+    if (!user) throw new Error("Not logged in.");
+
+    // Re-authenticate the teacher before updating the password
+    const credential = EmailAuthProvider.credential(user.email, currentPassword);
+    await reauthenticateWithCredential(user, credential);
+    
+    await updatePassword(user, newPassword);
+    return { success: true };
+  } catch (error) {
+    console.error("Error changing teacher password:", error);
+    if (error.code === 'auth/wrong-password') {
+      return { success: false, error: 'Current password is incorrect.' };
+    }
+    if (error.code === 'auth/requires-recent-login') {
+      return { success: false, error: 'For security, please log out and log back in to change your password.' };
+    }
+    return { success: false, error: error.message };
+  }
+};
+
+// ==================== CR ATTENDANCE LOG ====================
+export const updateClassAttendance = async (recordId, records, classId, editedBy, editorName) => {
+  try {
+    const ref = doc(db, 'classAttendance', recordId);
+    const existingSnap = await getDoc(ref);
+    const existingRecords = existingSnap.exists() ? existingSnap.data().records || [] : [];
+    
+    await updateDoc(ref, { records, updatedAt: serverTimestamp() });
+    
+    // Compare and log changes
+    const changedStudents = [];
+    records.forEach(newRec => {
+      const oldRec = existingRecords.find(r => r.studentId === newRec.studentId);
+      if (oldRec && oldRec.status !== newRec.status) {
+        changedStudents.push({
+          studentId: newRec.studentId,
+          oldStatus: oldRec.status,
+          newStatus: newRec.status
+        });
+      }
+    });
+
+    if (changedStudents.length > 0) {
+      await addDoc(collection(db, 'crAttendanceLogs'), {
+        classId,
+        classAttendanceId: recordId,
+        changedStudents,
+        editedBy: editedBy || null,
+        editorName: editorName || 'Unknown CR',
+        editedAt: serverTimestamp()
+      });
+    }
+
+    invalidatePrefix('att:class:');
+    return { success: true };
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
+};
+
+// New function to fetch logs for the teacher
+export const getCRAttendanceLogs = async (classId) => {
+  try {
+    const q = query(collection(db, 'crAttendanceLogs'), where('classId', '==', classId));
+    const snapshot = await getDocs(q);
+    let logs = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+    
+    // Sort in JS to avoid requiring a composite index in Firestore
+    logs.sort((a, b) => (b.editedAt?.seconds || 0) - (a.editedAt?.seconds || 0));
+    
+    return { success: true, data: logs };
   } catch (error) {
     return { success: false, error: error.message };
   }

@@ -127,19 +127,18 @@ const SubjectDetails = () => {
             <div className="space-y-3">
               {subject.classes.map((cls, index) => {
                 const colors = [
-                  { border: 'border-orange-300', icon: 'bg-orange-100', iconColor: 'text-orange-600', hover: 'hover:border-orange-500 hover:shadow-md' },
-                  { border: 'border-blue-300', icon: 'bg-blue-100', iconColor: 'text-blue-600', hover: 'hover:border-blue-500 hover:shadow-md' },
-                  { border: 'border-emerald-300', icon: 'bg-emerald-100', iconColor: 'text-emerald-600', hover: 'hover:border-emerald-500 hover:shadow-md' },
-                  { border: 'border-violet-300', icon: 'bg-violet-100', iconColor: 'text-violet-600', hover: 'hover:border-violet-500 hover:shadow-md' },
-                  { border: 'border-rose-300', icon: 'bg-rose-100', iconColor: 'text-rose-600', hover: 'hover:border-rose-500 hover:shadow-md' },
-                  { border: 'border-cyan-300', icon: 'bg-cyan-100', iconColor: 'text-cyan-600', hover: 'hover:border-cyan-500 hover:shadow-md' },
+                  { icon: 'bg-orange-100', iconColor: 'text-orange-600' },
+                  { icon: 'bg-blue-100', iconColor: 'text-blue-600' },
+                  { icon: 'bg-emerald-100', iconColor: 'text-emerald-600' },
+                  { icon: 'bg-violet-100', iconColor: 'text-violet-600' },
+                  { icon: 'bg-rose-100', iconColor: 'text-rose-600' },
                 ];
                 const color = colors[index % colors.length];
                 
                 return (
                   <div 
                     key={cls.classId} 
-                    className={`bg-white rounded-xl border-2 ${color.border} ${color.hover} p-3 sm:p-4 transition-all duration-200`}
+                    className="bg-white rounded-xl shadow-sm hover:shadow-md p-3 sm:p-4 transition-all duration-200"
                   >
                     <div className="flex flex-col sm:flex-row sm:items-center gap-3">
                       <div className="flex items-center gap-3 flex-1 min-w-0">
@@ -276,19 +275,18 @@ const SubjectDetails = () => {
                 <div className="space-y-2.5">
                   {subject.classes.map((cls, index) => {
                     const colors = [
-                      { border: 'border-orange-300', hover: 'hover:border-orange-500', icon: 'bg-orange-100', iconColor: 'text-orange-600' },
-                      { border: 'border-blue-300', hover: 'hover:border-blue-500', icon: 'bg-blue-100', iconColor: 'text-blue-600' },
-                      { border: 'border-emerald-300', hover: 'hover:border-emerald-500', icon: 'bg-emerald-100', iconColor: 'text-emerald-600' },
-                      { border: 'border-violet-300', hover: 'hover:border-violet-500', icon: 'bg-violet-100', iconColor: 'text-violet-600' },
-                      { border: 'border-rose-300', hover: 'hover:border-rose-500', icon: 'bg-rose-100', iconColor: 'text-rose-600' },
-                      { border: 'border-cyan-300', hover: 'hover:border-cyan-500', icon: 'bg-cyan-100', iconColor: 'text-cyan-600' },
+                      { icon: 'bg-orange-100', iconColor: 'text-orange-600' },
+                      { icon: 'bg-blue-100', iconColor: 'text-blue-600' },
+                      { icon: 'bg-emerald-100', iconColor: 'text-emerald-600' },
+                      { icon: 'bg-violet-100', iconColor: 'text-violet-600' },
+                      { icon: 'bg-rose-100', iconColor: 'text-rose-600' },
                     ];
                     const color = colors[index % colors.length];
 
                     return (
                       <div 
                         key={cls.classId} 
-                        className={`flex items-center justify-between p-3 bg-white rounded-lg border-2 ${color.border} ${color.hover} hover:shadow-sm transition-all duration-200`}
+                        className="flex items-center justify-between p-3 bg-white rounded-lg shadow-sm hover:shadow-md transition-all duration-200"
                       >
                         <div className="flex items-center gap-3 min-w-0 flex-1">
                           <div className={`w-10 h-10 ${color.icon} rounded-lg flex items-center justify-center shrink-0`}>

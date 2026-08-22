@@ -2,26 +2,20 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
-import { LogOut, Menu, X, Home, Users, ClipboardList, Layers, Megaphone, ChevronDown, Key, User } from 'lucide-react'; // Added ChevronDown, Key, User
+import { LogOut, Menu, X, Home, Users, ClipboardList, Layers, Megaphone, ChevronDown, Key, User } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import { logoutUser, subscribeToLatestAnnouncement } from '../../firebase/services';
 import toast from 'react-hot-toast';
 
 const Navbar = () => {
   const [isOpen, setIsOpen] = useState(false);
-  const [dropdownOpen, setDropdownOpen] = useState(false); // NEW: Dropdown state
+  const [dropdownOpen, setDropdownOpen] = useState(false);
   const { currentUser, userRole, clearStudentSession } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
   const [hasUnread, setHasUnread] = useState(false);
-  const dropdownRef = useRef(null); // Ref to detect outside clicks
+  const dropdownRef = useRef(null);
 
-  // Unread-announcement dot, live.
-  //
-  // The dot lights up the moment a teacher posts, without a refresh. It
-  // watches only the single newest announcement rather than the whole
-  // collection: the navbar is mounted by all 28 pages, so a full-collection
-  // listener re-read every announcement on every navigation.
   useEffect(() => {
     if (userRole !== 'student' || !currentUser?.classId) {
       setHasUnread(false);
@@ -34,9 +28,8 @@ const Navbar = () => {
     });
 
     return () => unsubscribe();
-  }, [userRole, currentUser?.classId, location.pathname]);
+  }, [userRole, currentUser?.classId]); // ✅ FIXED: Removed location.pathname
 
-  // Close dropdown if clicked outside
   useEffect(() => {
     const handleClickOutside = (event) => {
       if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
@@ -82,9 +75,6 @@ const Navbar = () => {
   const handleLogout = async () => {
     const result = await logoutUser(userRole);
     if (result.success) {
-      // Clear the context too, not just localStorage: a student's Firebase
-      // session is anonymous and stays signed in, so onAuthStateChanged never
-      // fires and the provider would otherwise keep them logged in.
       if (userRole === 'student') clearStudentSession();
       toast.success('Logged out successfully');
       navigate('/');
@@ -131,8 +121,6 @@ const Navbar = () => {
             {getNavLinks().map(renderLink)}
             {currentUser && (
               <div className="flex items-center gap-3 ml-4 pl-4 border-l relative" ref={dropdownRef}>
-                
-                {/* Profile / Dropdown Trigger */}
                 <button 
                   onClick={() => setDropdownOpen(!dropdownOpen)}
                   className="flex items-center gap-2 hover:bg-gray-100 p-2 rounded-lg transition-colors"
@@ -141,30 +129,25 @@ const Navbar = () => {
                     <p className="text-sm font-medium text-gray-800">{currentUser?.name || 'User'}</p>
                     <p className="text-xs text-gray-500 capitalize">{userRole}</p>
                   </div>
-                  <User className="w-6 h-6 text-gray-500 lg:hidden" /> {/* Icon for smaller screens */}
+                  <User className="w-6 h-6 text-gray-500 lg:hidden" />
                   <ChevronDown className={`w-4 h-4 text-gray-400 transition-transform ${dropdownOpen ? 'rotate-180' : ''}`} />
                 </button>
 
-                {/* Dropdown Menu */}
                 {dropdownOpen && (
                   <div className="absolute top-full right-0 mt-2 w-48 bg-white rounded-lg shadow-xl border py-2 z-50">
                     {userRole === 'student' && (
-                       <Link 
-                         to="/student/change-password" 
-                         onClick={() => setDropdownOpen(false)}
-                         className="flex items-center gap-2 px-4 py-2 text-gray-700 hover:bg-gray-50"
-                       >
-                         <Key className="w-4 h-4"/>
-                         Change Password
-                       </Link>
+                      <Link to="/student/change-password" onClick={() => setDropdownOpen(false)} className="flex items-center gap-2 px-4 py-2 text-gray-700 hover:bg-gray-50">
+                        <Key className="w-4 h-4"/> Change Password
+                      </Link>
                     )}
-                    {/* Add other roles here if needed */}
-                    <button 
-                      onClick={handleLogout} 
-                      className="w-full flex items-center gap-2 px-4 py-2 text-red-600 hover:bg-red-50"
-                    >
-                      <LogOut className="w-4 h-4"/>
-                      Logout
+                    {/* ✅ NEW: Teacher Change Password */}
+                    {userRole === 'teacher' && (
+                      <Link to="/teacher/change-password" onClick={() => setDropdownOpen(false)} className="flex items-center gap-2 px-4 py-2 text-gray-700 hover:bg-gray-50">
+                        <Key className="w-4 h-4"/> Change Password
+                      </Link>
+                    )}
+                    <button onClick={handleLogout} className="w-full flex items-center gap-2 px-4 py-2 text-red-600 hover:bg-red-50">
+                      <LogOut className="w-4 h-4"/> Logout
                     </button>
                   </div>
                 )}
@@ -199,15 +182,16 @@ const Navbar = () => {
             )}
             {getNavLinks().map(renderLink)}
             
-            {/* Mobile Specific Links */}
+           
             {userRole === 'student' && (
-                <Link 
-                    to="/student/change-password" 
-                    onClick={() => setIsOpen(false)}
-                    className="flex items-center gap-2 px-3 py-2 text-gray-600 hover:bg-gray-100 rounded-lg"
-                >
-                    <Key className="w-5 h-5" />
-                    Change Password
+                <Link to="/student/change-password" onClick={() => setIsOpen(false)} className="flex items-center gap-2 px-3 py-2 text-gray-600 hover:bg-gray-100 rounded-lg">
+                    <Key className="w-5 h-5" /> Change Password
+                </Link>
+            )}
+            {/* ✅ NEW: Teacher Change Password */}
+            {userRole === 'teacher' && (
+                <Link to="/teacher/change-password" onClick={() => setIsOpen(false)} className="flex items-center gap-2 px-3 py-2 text-gray-600 hover:bg-gray-100 rounded-lg">
+                    <Key className="w-5 h-5" /> Change Password
                 </Link>
             )}
 

@@ -1,11 +1,9 @@
-// src/firebase/config.js
-
 import { initializeApp } from 'firebase/app';
 import { getAuth } from 'firebase/auth';
 import {
   initializeFirestore,
   persistentLocalCache,
-  persistentMultipleTabManager,
+  persistentSingleTabManager, // ✅ CHANGED: Much more stable for single-page apps
   getFirestore
 } from 'firebase/firestore';
 import { getMessaging, isSupported } from 'firebase/messaging';
@@ -21,8 +19,6 @@ const firebaseConfig = {
 };
 const app = initializeApp(firebaseConfig);
 
-// Secondary app: lets an admin create accounts without being signed out of
-// their own session (createUserWithEmailAndPassword logs in the new user).
 const secondaryApp = initializeApp(firebaseConfig, 'Secondary');
 
 export const auth = getAuth(app);
@@ -30,20 +26,14 @@ export const secondaryAuth = getAuth(secondaryApp);
 
 /**
  * Firestore with an IndexedDB-backed cache.
- *
- * Documents already pulled once are kept on the device, which lets the app
- * survive reconnects and serve repeat listener/query results locally instead
- * of re-reading them from the server. Multi-tab manager keeps several open
- * tabs sharing one cache rather than fighting over the lock.
- *
- * Falls back to the default in-memory Firestore if persistence is unavailable
- * (private browsing, unsupported browser, storage disabled).
+ * Using persistentSingleTabManager to avoid internal assertion failures (ID: ca9)
+ * that occur when listeners are rapidly unsubscribed/resubscribed across navigation.
  */
 export const db = (() => {
   try {
     return initializeFirestore(app, {
       localCache: persistentLocalCache({
-        tabManager: persistentMultipleTabManager()
+        tabManager: persistentSingleTabManager()
       })
     });
   } catch (error) {

@@ -1,18 +1,9 @@
-// src/App.jsx
-
 import React, { Suspense, lazy } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { Toaster } from 'react-hot-toast';
 import { AuthProvider } from './contexts/AuthContext';
 import ProtectedRoute from './components/ProtectedRoute';
 import Loading from './components/common/Loading';
-
-// ============================================
-// ROUTE-LEVEL CODE SPLITTING
-// ============================================
-// Every page used to ship in one bundle, so a student on a phone downloaded
-// the entire admin console — Excel parsing, charts, drag-and-drop and all —
-// just to see their attendance. Each route now loads on demand.
 
 // AUTH PAGES
 const Contact = lazy(() => import('./pages/auth/Contact'));
@@ -44,6 +35,7 @@ const TeacherActivity = lazy(() => import('./pages/teacher/TeacherActivity'));
 const TeacherAnnouncements = lazy(() => import('./pages/teacher/TeacherAnnouncements'));
 const TeacherDashboard = lazy(() => import('./pages/teacher/TeacherDashboard'));
 const ViewAttendanceSheet = lazy(() => import('./pages/teacher/ViewAttendanceSheet'));
+const TeacherChangePassword = lazy(() => import('./pages/teacher/ChangePassword')); // ✅ Ensure this line is exactly like this
 
 // STUDENT PAGES
 const ChangePassword = lazy(() => import('./pages/student/ChangePassword'));
@@ -55,7 +47,6 @@ const ViewAttendance = lazy(() => import('./pages/student/ViewAttendance'));
 // SHARED PAGES
 const StudentDetails = lazy(() => import('./pages/shared/StudentDetails'));
 
-/** Wraps a lazily loaded page with the role guard. */
 const guarded = (roles, Component) => (
   <ProtectedRoute allowedRoles={roles}><Component /></ProtectedRoute>
 );
@@ -76,90 +67,53 @@ function App() {
 
         <Suspense fallback={<Loading message="Loading" />}>
           <Routes>
-            {/* ============================================ */}
             {/* PUBLIC ROUTES */}
-            {/* ============================================ */}
             <Route path="/" element={<RoleSelection />} />
             <Route path="/login/:role" element={<Login />} />
             <Route path="/contact" element={<Contact />} />
 
-            {/* ============================================ */}
             {/* ADMIN ROUTES */}
-            {/* ============================================ */}
-            {/* Dashboard */}
             <Route path="/admin/dashboard" element={guarded(['admin'], AdminDashboard)} />
-
-            {/* Teacher Management */}
             <Route path="/admin/add-teacher" element={guarded(['admin'], AddTeacher)} />
             <Route path="/admin/teachers" element={guarded(['admin'], ManageTeachers)} />
             <Route path="/admin/teacher/:teacherId/activity" element={guarded(['admin'], ViewTeacherActivity)} />
-
-            {/* Class Management */}
             <Route path="/admin/create-class" element={guarded(['admin'], CreateClass)} />
             <Route path="/admin/classes" element={guarded(['admin'], ManageClasses)} />
             <Route path="/admin/class/:classId/students" element={guarded(['admin'], ClassStudents)} />
             <Route path="/admin/class/:classId/edit" element={guarded(['admin'], EditClass)} />
             <Route path="/admin/class/:classId/crs" element={guarded(['admin'], ManageCRs)} />
             <Route path="/admin/class/:classId/attendance-report" element={guarded(['admin'], ClassAttendanceReport)} />
-
-            {/* Semester Management */}
             <Route path="/admin/create-semester" element={guarded(['admin'], CreateSemester)} />
             <Route path="/admin/semesters" element={guarded(['admin'], ManageSemesters)} />
             <Route path="/admin/semester/:semesterId" element={guarded(['admin'], AdminSemesterDetails)} />
-
-            {/* Messages */}
             <Route path="/admin/messages" element={guarded(['admin'], ViewMessages)} />
 
-            {/* ============================================ */}
             {/* TEACHER ROUTES */}
-            {/* ============================================ */}
-            {/* Dashboard */}
             <Route path="/teacher/dashboard" element={guarded(['teacher'], TeacherDashboard)} />
-
-            {/* Announcements */}
             <Route path="/teacher/announcements" element={guarded(['teacher'], TeacherAnnouncements)} />
-
-            {/* Semester & Subject Management */}
             <Route path="/teacher/semester/:semesterId" element={guarded(['teacher'], SemesterDetails)} />
             <Route path="/teacher/subject/:subjectId" element={guarded(['teacher'], SubjectDetails)} />
             <Route path="/teacher/subject/:subjectId/activity" element={guarded(['teacher'], TeacherActivity)} />
-
-            {/* Class & Students */}
             <Route path="/teacher/class/:classId/students" element={guarded(['teacher'], ClassStudents)} />
-            {/* ✅ NEW: Teacher access to CR Attendance Report */}
-            <Route path="/teacher/class/:classId/cr-attendance-report" element={guarded(['teacher'], ClassAttendanceReport)} />
-
-
-            {/* Attendance Management */}
             <Route path="/teacher/subject/:subjectId/class/:classId/attendance" element={guarded(['teacher'], TakeAttendance)} />
             <Route path="/teacher/subject/:subjectId/class/:classId/sheet" element={guarded(['teacher'], ViewAttendanceSheet)} />
             <Route path="/teacher/subject/:subjectId/edit-attendance" element={guarded(['teacher'], EditAttendance)} />
+            <Route path="/teacher/class/:classId/cr-attendance-report" element={guarded(['teacher'], ClassAttendanceReport)} />
+            {/* ✅ Ensure this route is exactly like this */}
+            <Route path="/teacher/change-password" element={guarded(['teacher'], TeacherChangePassword)} />
 
-            {/* ============================================ */}
             {/* STUDENT ROUTES */}
-            {/* ============================================ */}
-            {/* Dashboard */}
             <Route path="/student/dashboard" element={guarded(['student'], StudentDashboard)} />
-
-            {/* Account Management */}
             <Route path="/student/change-password" element={guarded(['student'], ChangePassword)} />
-
-            {/* Attendance */}
             <Route path="/student/attendance" element={guarded(['student'], ViewAttendance)} />
             <Route path="/student/take-attendance" element={guarded(['student'], TakeClassAttendance)} />
             <Route path="/student/class-report/:classId" element={guarded(['student'], ClassAttendanceReport)} />
-
-            {/* Announcements */}
             <Route path="/student/announcements" element={guarded(['student'], StudentAnnouncements)} />
 
-            {/* ============================================ */}
             {/* SHARED ROUTES */}
-            {/* ============================================ */}
             <Route path="/student/details/:studentId" element={guarded(['admin', 'teacher'], StudentDetails)} />
 
-            {/* ============================================ */}
             {/* FALLBACK ROUTE */}
-            {/* ============================================ */}
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
         </Suspense>
