@@ -148,16 +148,34 @@ const StudentDashboard = () => {
       <main className="max-w-7xl mx-auto px-4 py-4 sm:py-8">
         {loading ? (<DashboardSkeleton />) : (
           <>
-             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
-                <div>
-                    <h1 className="text-2xl sm:text-3xl font-bold text-gray-800">Welcome, {currentUser?.name || 'Student'}! 👋</h1>
-                    <p className="text-gray-600 mt-1 text-sm">
-                        {studentSemester ? studentSemester.name : 'No Semester Assigned'} • {currentUser?.className} • {currentUser?.studentId}
-                    </p>
-                </div>
-                <Button variant="secondary" size="sm" icon={RefreshCw} onClick={handleRefresh} className="self-start">
+            {/* Header Section - Mobile and Desktop */}
+            <div className="mb-6">
+              {/* Mobile View */}
+              <div className="sm:hidden">
+                <div className="flex items-center justify-between mb-1">
+                  <h1 className="text-2xl font-bold text-gray-800">Welcome,</h1>
+                  <Button variant="secondary" size="sm" icon={RefreshCw} onClick={handleRefresh}>
                     Refresh
+                  </Button>
+                </div>
+                <h2 className="text-2xl font-bold text-gray-800 mb-2">{currentUser?.name || 'Student'}! 👋</h2>
+                <p className="text-gray-600 text-sm">
+                  {studentSemester ? studentSemester.name : 'No Semester Assigned'} • {currentUser?.className} • {currentUser?.studentId}
+                </p>
+              </div>
+              
+              {/* Desktop View */}
+              <div className="hidden sm:flex sm:items-center sm:justify-between">
+                <div>
+                  <h1 className="text-3xl font-bold text-gray-800">Welcome, {currentUser?.name || 'Student'}! 👋</h1>
+                  <p className="text-gray-600 mt-1 text-sm">
+                    {studentSemester ? studentSemester.name : 'No Semester Assigned'} • {currentUser?.className} • {currentUser?.studentId}
+                  </p>
+                </div>
+                <Button variant="secondary" size="sm" icon={RefreshCw} onClick={handleRefresh}>
+                  Refresh
                 </Button>
+              </div>
             </div>
 
             {crInfo && (

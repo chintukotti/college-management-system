@@ -6,46 +6,46 @@ import ProtectedRoute from './components/ProtectedRoute';
 import Loading from './components/common/Loading';
 
 // AUTH PAGES
-const Contact = lazy(() => import('./pages/auth/Contact'));
-const Login = lazy(() => import('./pages/auth/Login'));
-const RoleSelection = lazy(() => import('./pages/auth/RoleSelection'));
+const Contact = lazy(() => import(/* webpackPrefetch: true */ './pages/auth/Contact'));
+const Login = lazy(() => import(/* webpackPrefetch: true */ './pages/auth/Login'));
+const RoleSelection = lazy(() => import(/* webpackPrefetch: true */ './pages/auth/RoleSelection'));
 
 // ADMIN PAGES
-const AddTeacher = lazy(() => import('./pages/admin/AddTeacher'));
-const AdminDashboard = lazy(() => import('./pages/admin/AdminDashboard'));
-const AdminSemesterDetails = lazy(() => import('./pages/admin/AdminSemesterDetails'));
-const ClassAttendanceReport = lazy(() => import('./pages/admin/ClassAttendanceReport'));
-const ClassStudents = lazy(() => import('./pages/admin/ClassStudents'));
-const CreateClass = lazy(() => import('./pages/admin/CreateClass'));
-const CreateSemester = lazy(() => import('./pages/admin/CreateSemester'));
-const EditClass = lazy(() => import('./pages/admin/EditClass'));
-const ManageClasses = lazy(() => import('./pages/admin/ManageClasses'));
-const ManageCRs = lazy(() => import('./pages/admin/ManageCRs'));
-const ManageSemesters = lazy(() => import('./pages/admin/ManageSemesters'));
-const ManageTeachers = lazy(() => import('./pages/admin/ManageTeachers'));
-const ViewMessages = lazy(() => import('./pages/admin/ViewMessages'));
-const ViewTeacherActivity = lazy(() => import('./pages/admin/ViewTeacherActivity'));
+const AddTeacher = lazy(() => import(/* webpackPrefetch: true */ './pages/admin/AddTeacher'));
+const AdminDashboard = lazy(() => import(/* webpackPrefetch: true */ './pages/admin/AdminDashboard'));
+const AdminSemesterDetails = lazy(() => import(/* webpackPrefetch: true */ './pages/admin/AdminSemesterDetails'));
+const ClassAttendanceReport = lazy(() => import(/* webpackPrefetch: true */ './pages/admin/ClassAttendanceReport'));
+const ClassStudents = lazy(() => import(/* webpackPrefetch: true */ './pages/admin/ClassStudents'));
+const CreateClass = lazy(() => import(/* webpackPrefetch: true */ './pages/admin/CreateClass'));
+const CreateSemester = lazy(() => import(/* webpackPrefetch: true */ './pages/admin/CreateSemester'));
+const EditClass = lazy(() => import(/* webpackPrefetch: true */ './pages/admin/EditClass'));
+const ManageClasses = lazy(() => import(/* webpackPrefetch: true */ './pages/admin/ManageClasses'));
+const ManageCRs = lazy(() => import(/* webpackPrefetch: true */ './pages/admin/ManageCRs'));
+const ManageSemesters = lazy(() => import(/* webpackPrefetch: true */ './pages/admin/ManageSemesters'));
+const ManageTeachers = lazy(() => import(/* webpackPrefetch: true */ './pages/admin/ManageTeachers'));
+const ViewMessages = lazy(() => import(/* webpackPrefetch: true */ './pages/admin/ViewMessages'));
+const ViewTeacherActivity = lazy(() => import(/* webpackPrefetch: true */ './pages/admin/ViewTeacherActivity'));
 
 // TEACHER PAGES
-const EditAttendance = lazy(() => import('./pages/teacher/EditAttendance'));
-const SemesterDetails = lazy(() => import('./pages/teacher/SemesterDetails'));
-const SubjectDetails = lazy(() => import('./pages/teacher/SubjectDetails'));
-const TakeAttendance = lazy(() => import('./pages/teacher/TakeAttendance'));
-const TeacherActivity = lazy(() => import('./pages/teacher/TeacherActivity'));
-const TeacherAnnouncements = lazy(() => import('./pages/teacher/TeacherAnnouncements'));
-const TeacherDashboard = lazy(() => import('./pages/teacher/TeacherDashboard'));
-const ViewAttendanceSheet = lazy(() => import('./pages/teacher/ViewAttendanceSheet'));
-const TeacherChangePassword = lazy(() => import('./pages/teacher/ChangePassword')); // ✅ Ensure this line is exactly like this
+const EditAttendance = lazy(() => import(/* webpackPrefetch: true */ './pages/teacher/EditAttendance'));
+const SemesterDetails = lazy(() => import(/* webpackPrefetch: true */ './pages/teacher/SemesterDetails'));
+const SubjectDetails = lazy(() => import(/* webpackPrefetch: true */ './pages/teacher/SubjectDetails'));
+const TakeAttendance = lazy(() => import(/* webpackPrefetch: true */ './pages/teacher/TakeAttendance'));
+const TeacherActivity = lazy(() => import(/* webpackPrefetch: true */ './pages/teacher/TeacherActivity'));
+const TeacherAnnouncements = lazy(() => import(/* webpackPrefetch: true */ './pages/teacher/TeacherAnnouncements'));
+const TeacherDashboard = lazy(() => import(/* webpackPrefetch: true */ './pages/teacher/TeacherDashboard'));
+const ViewAttendanceSheet = lazy(() => import(/* webpackPrefetch: true */ './pages/teacher/ViewAttendanceSheet'));
+const TeacherChangePassword = lazy(() => import(/* webpackPrefetch: true */ './pages/teacher/ChangePassword'));
 
 // STUDENT PAGES
-const ChangePassword = lazy(() => import('./pages/student/ChangePassword'));
-const StudentAnnouncements = lazy(() => import('./pages/student/StudentAnnouncements'));
-const StudentDashboard = lazy(() => import('./pages/student/StudentDashboard'));
-const TakeClassAttendance = lazy(() => import('./pages/student/TakeClassAttendance'));
-const ViewAttendance = lazy(() => import('./pages/student/ViewAttendance'));
+const ChangePassword = lazy(() => import(/* webpackPrefetch: true */ './pages/student/ChangePassword'));
+const StudentAnnouncements = lazy(() => import(/* webpackPrefetch: true */ './pages/student/StudentAnnouncements'));
+const StudentDashboard = lazy(() => import(/* webpackPrefetch: true */ './pages/student/StudentDashboard'));
+const TakeClassAttendance = lazy(() => import(/* webpackPrefetch: true */ './pages/student/TakeClassAttendance'));
+const ViewAttendance = lazy(() => import(/* webpackPrefetch: true */ './pages/student/ViewAttendance'));
 
 // SHARED PAGES
-const StudentDetails = lazy(() => import('./pages/shared/StudentDetails'));
+const StudentDetails = lazy(() => import(/* webpackPrefetch: true */ './pages/shared/StudentDetails'));
 
 const guarded = (roles, Component) => (
   <ProtectedRoute allowedRoles={roles}><Component /></ProtectedRoute>
@@ -99,7 +99,6 @@ function App() {
             <Route path="/teacher/subject/:subjectId/class/:classId/sheet" element={guarded(['teacher'], ViewAttendanceSheet)} />
             <Route path="/teacher/subject/:subjectId/edit-attendance" element={guarded(['teacher'], EditAttendance)} />
             <Route path="/teacher/class/:classId/cr-attendance-report" element={guarded(['teacher'], ClassAttendanceReport)} />
-            {/* ✅ Ensure this route is exactly like this */}
             <Route path="/teacher/change-password" element={guarded(['teacher'], TeacherChangePassword)} />
 
             {/* STUDENT ROUTES */}

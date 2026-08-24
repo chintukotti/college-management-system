@@ -1,6 +1,6 @@
 // src/pages/teacher/TakeAttendance.jsx
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { ArrowLeft, Check, X, ChevronLeft, ChevronRight, Save, RotateCcw, Clock, Users, BookOpen, FlaskConical, Search, CheckCircle, XCircle, List, Columns } from 'lucide-react';
 import { useSwipeable } from 'react-swipeable';
@@ -135,13 +135,21 @@ const TakeAttendance = () => {
 
   const handleReset = () => { setAttendance({}); setCurrentIndex(0); };
 
+  // ✅ FIX 5: Add a ref to act as an immediate lock
+  const isSaving = useRef(false);
+
   const handleSave = async () => {
+    if (isSaving.current) return; // Block double clicks instantly
+    isSaving.current = true;      // Lock it
+
     if (!unit.trim()) {
       toast.error('Unit is mandatory');
+      isSaving.current = false;   // Unlock if validation fails
       return;
     }
     if (Object.keys(attendance).length < students.length) {
       toast.error(`Mark all students first (${Object.keys(attendance).length}/${students.length})`);
+      isSaving.current = false;   // Unlock if validation fails
       return;
     }
 
@@ -204,6 +212,8 @@ const TakeAttendance = () => {
     }
 
     setSaving(false);
+    // Unlock after 1 second to prevent rapid UI double clicks
+    setTimeout(() => { isSaving.current = false; }, 1000);
   };
 
   const getAttendanceStats = () => {

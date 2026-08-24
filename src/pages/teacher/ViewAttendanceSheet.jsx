@@ -1,9 +1,7 @@
-// src/pages/teacher/ViewAttendanceSheet.jsx
-
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { ArrowLeft, Download, AlertTriangle, Eye, ChevronDown, ChevronUp, Plus, Save, X, Smartphone } from 'lucide-react';
-import { getSubjectById, getClassById, getAttendanceForSubjectAndClass, getStudentsByClass, saveSessionAttendance } from '../../firebase/services';
+import { ArrowLeft, Download, AlertTriangle, Eye, ChevronDown, ChevronUp, Plus, Save, X, Smartphone, CalendarCheck, BookOpen, FlaskConical, Clock } from 'lucide-react';
+import { getSubjectById, getClassById, getAttendanceForSubjectAndClass, getStudentsByClass, saveSessionAttendance, getClassAttendance } from '../../firebase/services';
 import { createAttendanceExcel } from '../../utils/excelUtils';
 import { useAuth } from '../../contexts/AuthContext';
 import Navbar from '../../components/common/Navbar';
@@ -33,7 +31,14 @@ const ViewAttendanceSheet = () => {
   const [manualAttendance, setManualAttendance] = useState({}); 
   const [savingManual, setSavingManual] = useState(false);
 
-  // Ref + state for mouse drag scrolling
+  // ✅ NEW: Sync CR Attendance State
+  const [showSyncModal, setShowSyncModal] = useState(false);
+  const [syncDate, setSyncDate] = useState(getTodayDate());
+  const [syncUnit, setSyncUnit] = useState('');
+  const [syncTopic, setSyncTopic] = useState('');
+  const [syncSessionType, setSyncSessionType] = useState('class');
+  const [syncing, setSyncing] = useState(false);
+
   const scrollRef = useRef(null);
   const [isDragging, setIsDragging] = useState(false);
   const [startX, setStartX] = useState(0);
@@ -59,7 +64,6 @@ const ViewAttendanceSheet = () => {
 
         studentsResult.data.forEach(student => {
           const studentRecords = attendanceResult.data.filter(a => a.oderId === student.id);
-
           if (studentRecords.length === 0) return;
 
           let present = 0;
@@ -92,10 +96,8 @@ const ViewAttendanceSheet = () => {
     fetchData();
   }, [fetchData]);
 
-  // ✅ Auto-scroll to the right on load so latest dates are visible
   useEffect(() => {
     if (!loading && scrollRef.current) {
-      // Small timeout to ensure the table is fully rendered
       const timer = setTimeout(() => {
         if (scrollRef.current) {
           scrollRef.current.scrollLeft = scrollRef.current.scrollWidth;
@@ -105,7 +107,6 @@ const ViewAttendanceSheet = () => {
     }
   }, [loading, attendance]);
 
-  // Mouse drag scroll handlers
   const handleMouseDown = (e) => {
     if (!scrollRef.current) return;
     setIsDragging(true);
@@ -141,13 +142,10 @@ const ViewAttendanceSheet = () => {
     }
   };
 
-  // ... [Keep all previous code in ViewAttendanceSheet.jsx the same] ...
-
   const handleDownload = () => {
     setDownloading(true);
     try {
       const dateCapacities = subject?.dateCapacities?.[classId] || {};
-      // ✅ Pass `students` array so Excel rows match the UI order
       const fileName = createAttendanceExcel(attendance, subject?.name || 'Subject', classData?.name || 'Class', dateCapacities, students);
       toast.success(`Downloaded: ${fileName}`);
     } catch (error) {
@@ -155,8 +153,6 @@ const ViewAttendanceSheet = () => {
     }
     setDownloading(false);
   };
-
-// ... [Keep all remaining code in ViewAttendanceSheet.jsx the same] ...
 
   const getDateCapacity = (date) => {
     const fromSubject = subject?.dateCapacities?.[classId]?.[date];
@@ -166,10 +162,6 @@ const ViewAttendanceSheet = () => {
   };
 
   const openManualModal = () => {
-    // Seed counts from the capacity this modal is about to open with (1), not
-    // from whatever manualMaxCount was left at last time. Seeding with a stale
-    // 3 while resetting the max to 1 left every untouched student on count 3
-    // against maxCount 1.
     const initialAtt = {};
     students.forEach(s => initialAtt[s.id] = 1);
     setManualAttendance(initialAtt);
@@ -186,9 +178,6 @@ const ViewAttendanceSheet = () => {
     toast.success(`All students marked Present for ${count} periods`);
   };
 
-  // Lowering the session capacity must pull every per-student count down with
-  // it, otherwise the inputs keep showing a number larger than the max and the
-  // save clamps them to something the teacher never saw.
   const handleMaxCountChange = (value) => {
     setManualMaxCount(value);
     const max = parseInt(value) || 1;
@@ -208,17 +197,17 @@ const ViewAttendanceSheet = () => {
     setManualAttendance(prev => ({ ...prev, [studentId]: validVal }));
   };
 
-  const handleManualSave = async () => {
-    if (!manualDate) {
-      toast.error("Please select a date");
-      return;
-    }
+    const handleManualSave = async () => {
+    if (!manualDate) { toast.error("Please select a date"); return; }
     
+    // ✅ NEW: Prevent future dates
+    if (manualDate > getTodayDate()) {
+      return toast.error("Cannot add attendance for future dates.");
+    }
+
     setSavingManual(true);
     const maxCountVal = parseInt(manualMaxCount) || 1;
 
-    // An absent student stores the full session capacity as their count so the
-    // denominator stays right; a present student stores what they attended.
     const records = students.map(student => {
       const attendedCount = manualAttendance[student.id] || 0;
       return {
@@ -246,7 +235,8 @@ const ViewAttendanceSheet = () => {
           className: classData?.name,
           time: 'Manual Entry',
           sessionType: 'cumulative',
-          markedBy: currentUser.uid
+          markedBy: currentUser.uid,
+          skipEmail: true // ✅ NEW: Skip emails for manual entries
         }
       });
 
@@ -260,6 +250,85 @@ const ViewAttendanceSheet = () => {
       console.error(err);
     }
     setSavingManual(false);
+  };
+
+  // ✅ NEW: Handle CR Sync Submission
+  const handleSyncSubmit = async () => {
+    if (!syncDate) return toast.error("Please select a date.");
+    if (!syncUnit.trim()) return toast.error("Unit is required.");
+    
+    // ✅ NEW: Prevent future dates
+    if (syncDate > getTodayDate()) {
+      return toast.error("Cannot sync attendance for future dates.");
+    }
+
+    // Check if teacher already took attendance for this date
+    if (uniqueDates.includes(syncDate)) {
+      // ✅ FIX 6: Made the error message more specific
+      return toast.error(`You already took attendance for ${syncDate}. Cannot overwrite with CR Sync.`);
+    }
+
+    setSyncing(true);
+    try {
+      const crRes = await getClassAttendance(classId);
+      if (!crRes.success) throw new Error("Failed to fetch CR attendance.");
+
+      const crLog = crRes.data.find(l => l.date === syncDate);
+      if (!crLog || !crLog.records || crLog.records.length === 0) {
+        toast.error(`CR has not submitted attendance for ${syncDate}.`);
+        setSyncing(false);
+        return;
+      }
+
+      const sessionCount = syncSessionType === 'lab' ? 3 : 1;
+
+      const mappedRecords = crLog.records.map(rec => {
+        const student = students.find(s => s.id === rec.studentId);
+        return {
+          oderId: rec.studentId,
+          studentId: rec.studentId,
+          studentName: student?.name || 'Unknown',
+          status: rec.status,
+          count: sessionCount,
+          maxCount: sessionCount,
+          sessionType: syncSessionType
+        };
+      });
+
+      const result = await saveSessionAttendance({
+        subjectId,
+        classId,
+        date: syncDate,
+        records: mappedRecords,
+        meta: {
+          subjectName: subject.name,
+          subjectCode: subject.code,
+          semesterId: subject.semesterId,
+          semesterName: subject.semesterName,
+          className: classData?.name,
+          time: 'CR Sync',
+          sessionType: syncSessionType,
+          markedBy: currentUser.uid,
+          teacherName: currentUser.name,
+          unit: syncUnit,
+          topic: syncTopic,
+          skipEmail: true // ✅ NEW: Skip emails for CR Sync
+        }
+      });
+
+      if (result.success) {
+        toast.success(`Attendance synced from CR for ${syncDate}!`);
+        setShowSyncModal(false);
+        setSyncUnit('');
+        setSyncTopic('');
+        fetchData(true); 
+      } else {
+        throw new Error(result.error || "Failed to sync attendance.");
+      }
+    } catch (err) {
+      toast.error(err.message);
+    }
+    setSyncing(false);
   };
 
   if (loading) return <Loading />;
@@ -288,12 +357,10 @@ const ViewAttendanceSheet = () => {
     return total;
   };
 
-  // ✅ Sticky column widths — keep in sync
-  const TOTAL_COL_W = 80;  // px width of Total column
-  const PCT_COL_W = 64;    // px width of % column
-  const STICKY_RIGHT_TOTAL = PCT_COL_W; // Total is offset by % column width
+  const TOTAL_COL_W = 80;
+  const PCT_COL_W = 64;
+  const STICKY_RIGHT_TOTAL = PCT_COL_W;
 
-  // Shared inline styles for sticky summary columns — solid opaque blue, no white bleed
   const stickyTotalHeaderStyle = {
     position: 'sticky',
     right: STICKY_RIGHT_TOTAL,
@@ -333,29 +400,47 @@ const ViewAttendanceSheet = () => {
       <Navbar />
       
       <main className="max-w-full px-4 py-4 sm:py-8 overflow-x-hidden">
-        {/* Header */}
-        <div className="flex items-center justify-between mb-4 max-w-7xl mx-auto">
+      {/* Header */}
+      <div className="max-w-7xl mx-auto mb-4">
+        {/* Title Row */}
+        <div className="flex items-center justify-between mb-3 md:mb-4">
           <div className="flex items-center gap-2 min-w-0">
             <Link to={`/teacher/subject/${subjectId}`} className="inline-flex items-center text-gray-600 hover:text-gray-800 text-sm whitespace-nowrap flex-shrink-0">
               <ArrowLeft className="w-4 h-4 mr-1" /> <span className="hidden sm:inline">Back</span>
             </Link>
             <h1 className="text-lg sm:text-2xl font-bold text-gray-800 truncate">Attendance Sheet</h1>
           </div>
-          <div className="flex items-center gap-2 flex-shrink-0">
+          
+          {/* Desktop Buttons - Hidden on Mobile */}
+          <div className="hidden md:flex items-center gap-2 flex-shrink-0">
+            <Button variant="secondary" size="sm" icon={CalendarCheck} onClick={() => setShowSyncModal(true)}>
+              Use CR Attendance
+            </Button>
             <Button variant="secondary" size="sm" icon={Plus} onClick={openManualModal}>
-              <span className="hidden sm:inline">Add Entry</span>
-              <span className="sm:hidden">Add</span>
+              Add Entry
             </Button>
             <Button icon={Download} size="sm" onClick={handleDownload} loading={downloading}>
-              <span className="hidden sm:inline">Excel</span>
-              <span className="sm:hidden">Excel</span>
+              Excel
             </Button>
           </div>
         </div>
 
-        <div className="max-w-7xl mx-auto mb-4">
-           <p className="text-gray-600 text-sm">{subject?.name} • {classData?.name}</p>
+        {/* Mobile Buttons - Shown only on Mobile with space-between */}
+        <div className="flex md:hidden items-center justify-between gap-2 mb-3">
+          <Button variant="secondary" size="sm" icon={CalendarCheck} onClick={() => setShowSyncModal(true)}>
+            CR Sync
+          </Button>
+          <Button variant="secondary" size="sm" icon={Plus} onClick={openManualModal}>
+            Add
+          </Button>
+          <Button icon={Download} size="sm" onClick={handleDownload} loading={downloading}>
+            Excel
+          </Button>
         </div>
+
+        {/* Subject and Class Info */}
+        <p className="text-gray-600 text-sm">{subject?.name} • {classData?.name}</p>
+      </div>
 
         {/* Low Attendance Alert */}
         {lowAttendanceStudents.length > 0 && (
@@ -395,16 +480,12 @@ const ViewAttendanceSheet = () => {
           </div>
         )}
 
-        {/* ════════════════════════════════════════════ */}
-        {/* MOBILE VIEW: S.No, ID, Latest Date, Total   */}
-        {/* ════════════════════════════════════════════ */}
+        {/* MOBILE VIEW */}
         <div className="block md:hidden max-w-7xl mx-auto">
           <Card className="overflow-hidden p-0">
             <div className="bg-indigo-50 px-4 py-2 border-b flex items-center gap-2">
               <Smartphone className="w-4 h-4 text-indigo-500" />
-              <p className="text-xs text-indigo-600">
-                Summary view • Download Excel for full report
-              </p>
+              <p className="text-xs text-indigo-600">Summary view • Download Excel for full report</p>
             </div>
 
             {uniqueDates.length === 0 ? (
@@ -461,12 +542,9 @@ const ViewAttendanceSheet = () => {
           </Card>
         </div>
 
-        {/* ════════════════════════════════════════════ */}
-        {/* DESKTOP VIEW: Full scrollable + draggable   */}
-        {/* ════════════════════════════════════════════ */}
+        {/* DESKTOP VIEW */}
         <div className="hidden md:block">
           <Card className="max-w-7xl mx-auto overflow-hidden p-0">
-            {/* Drag hint */}
             {uniqueDates.length > 5 && (
               <div className="bg-gray-50 px-4 py-1.5 border-b flex items-center justify-center gap-2">
                 <span className="text-[11px] text-gray-400">← Click and drag to scroll →</span>
@@ -481,19 +559,12 @@ const ViewAttendanceSheet = () => {
               onMouseUp={handleMouseUp}
               onMouseLeave={handleMouseLeave}
             >
-              {/* ✅ table-layout: auto, no w-full — table fits its content exactly, no trailing white space */}
               <table className="text-sm text-left whitespace-nowrap" style={{ tableLayout: 'auto', width: 'max-content', minWidth: '100%' }}>
                 <thead className="bg-gray-100 text-gray-700 font-semibold">
                   <tr>
-                    <th className="p-3 border-b sticky left-0 bg-gray-100 z-20 w-12 text-center">
-                      S.No
-                    </th>
-                    <th className="p-3 border-b sticky left-12 bg-gray-100 z-20 w-28 min-w-[112px]">
-                      ID
-                    </th>
-                    <th className="p-3 border-b sticky left-40 bg-gray-100 z-20 w-44 min-w-[176px] border-r">
-                      Name
-                    </th>
+                    <th className="p-3 border-b sticky left-0 bg-gray-100 z-20 w-12 text-center">S.No</th>
+                    <th className="p-3 border-b sticky left-12 bg-gray-100 z-20 w-28 min-w-[112px]">ID</th>
+                    <th className="p-3 border-b sticky left-40 bg-gray-100 z-20 w-44 min-w-[176px] border-r">Name</th>
                     {uniqueDates.map((date, idx) => {
                       const record = attendance.find(a => a.date === date);
                       const isCumulative = record?.sessionType === 'cumulative';
@@ -511,20 +582,8 @@ const ViewAttendanceSheet = () => {
                         </th>
                       );
                     })}
-                    {/* Total header */}
-                    <th 
-                      className="p-3 border-b text-center border-l"
-                      style={stickyTotalHeaderStyle}
-                    >
-                      Total
-                    </th>
-                    {/* % header */}
-                    <th 
-                      className="p-3 border-b text-center border-l"
-                      style={stickyPctHeaderStyle}
-                    >
-                      %
-                    </th>
+                    <th className="p-3 border-b text-center border-l" style={stickyTotalHeaderStyle}>Total</th>
+                    <th className="p-3 border-b text-center border-l" style={stickyPctHeaderStyle}>%</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -536,15 +595,9 @@ const ViewAttendanceSheet = () => {
 
                     return (
                       <tr key={student.id} className="hover:bg-gray-50 border-b">
-                        <td className="p-3 text-center text-gray-500 sticky left-0 bg-white z-10 border-r">
-                          {index + 1}
-                        </td>
-                        <td className="p-3 font-medium text-gray-900 sticky left-12 bg-white z-10">
-                          {student.studentId}
-                        </td>
-                        <td className="p-3 text-gray-700 sticky left-40 bg-white z-10 border-r">
-                          {student.name}
-                        </td>
+                        <td className="p-3 text-center text-gray-500 sticky left-0 bg-white z-10 border-r">{index + 1}</td>
+                        <td className="p-3 font-medium text-gray-900 sticky left-12 bg-white z-10">{student.studentId}</td>
+                        <td className="p-3 text-gray-700 sticky left-40 bg-white z-10 border-r">{student.name}</td>
                         {uniqueDates.map((date, dIdx) => (
                           <td key={dIdx} className="p-3 text-center">
                             <span className={`inline-block px-2 py-1 rounded text-xs font-bold ${
@@ -558,22 +611,8 @@ const ViewAttendanceSheet = () => {
                             </span>
                           </td>
                         ))}
-                        {/* Total cell */}
-                        <td 
-                          className="p-3 text-center font-bold text-blue-700 border-l"
-                          style={stickyTotalCellStyle}
-                        >
-                          {totalPresents}/{grandTotal}
-                        </td>
-                        {/* % cell */}
-                        <td 
-                          className={`p-3 text-center font-bold border-l ${
-                            pct >= 75 ? 'text-green-600' : pct >= 50 ? 'text-yellow-600' : 'text-red-600'
-                          }`}
-                          style={stickyPctCellStyle}
-                        >
-                          {pct}%
-                        </td>
+                        <td className="p-3 text-center font-bold text-blue-700 border-l" style={stickyTotalCellStyle}>{totalPresents}/{grandTotal}</td>
+                        <td className={`p-3 text-center font-bold border-l ${pct >= 75 ? 'text-green-600' : pct >= 50 ? 'text-yellow-600' : 'text-red-600'}`} style={stickyPctCellStyle}>{pct}%</td>
                       </tr>
                     );
                   })}
@@ -600,27 +639,16 @@ const ViewAttendanceSheet = () => {
                     </div>
                     <div>
                         <label className="block text-sm font-medium mb-1">Total Days/Periods</label>
-                        <input 
-                          type="number" 
-                          min="1" 
-                          value={manualMaxCount} 
-                          onChange={e => handleMaxCountChange(e.target.value)} 
-                          className="w-full px-3 py-2 border rounded-lg" 
-                          placeholder="e.g., 30"
-                        />
+                        <input type="number" min="1" value={manualMaxCount} onChange={e => handleMaxCountChange(e.target.value)} className="w-full px-3 py-2 border rounded-lg" placeholder="e.g., 30" />
                         <p className="text-xs text-gray-400 mt-1">Max count for this session.</p>
                     </div>
                 </div>
 
                 <div className="mb-4">
-                    <Button size="sm" variant="success" onClick={handleFillAllPresent}>
-                        Mark All Present ({manualMaxCount || 1})
-                    </Button>
+                    <Button size="sm" variant="success" onClick={handleFillAllPresent}>Mark All Present ({manualMaxCount || 1})</Button>
                 </div>
 
-                <div className="mb-2 text-sm text-gray-600">
-                    Enter attended periods for each student (0 to {manualMaxCount || 1}):
-                </div>
+                <div className="mb-2 text-sm text-gray-600">Enter attended periods for each student (0 to {manualMaxCount || 1}):</div>
 
                 <div className="max-h-[400px] overflow-y-auto border rounded-lg">
                     <table className="w-full text-sm">
@@ -635,14 +663,7 @@ const ViewAttendanceSheet = () => {
                                 <tr key={s.id} className="border-t">
                                     <td className="p-2">{s.name} <span className="text-gray-400 text-xs">({s.studentId})</span></td>
                                     <td className="p-2 text-center">
-                                        <input 
-                                            type="number"
-                                            min="0"
-                                            max={manualMaxCount || 1}
-                                            value={manualAttendance[s.id] || 0}
-                                            onChange={(e) => handleStudentCountChange(s.id, e.target.value)}
-                                            className="w-16 px-2 py-1 border rounded text-center"
-                                        />
+                                        <input type="number" min="0" max={manualMaxCount || 1} value={manualAttendance[s.id] || 0} onChange={(e) => handleStudentCountChange(s.id, e.target.value)} className="w-16 px-2 py-1 border rounded text-center" />
                                     </td>
                                 </tr>
                             ))}
@@ -655,6 +676,106 @@ const ViewAttendanceSheet = () => {
                     <Button icon={Save} onClick={handleManualSave} loading={savingManual}>Save Entry</Button>
                 </div>
             </Card>
+        </div>
+      )}
+
+      {/* ✅ NEW: Use CR Attendance Modal */}
+      {showSyncModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4 overflow-y-auto">
+          <Card className="w-full max-w-lg my-auto">
+            <div className="flex justify-between items-center mb-6">
+              <div className="flex items-center gap-3">
+                <div className="p-2.5 bg-emerald-100 rounded-lg">
+                  <CalendarCheck className="w-5 h-5 text-emerald-600" />
+                </div>
+                <div>
+                  <h2 className="text-xl font-bold text-gray-800">Use CR Attendance</h2>
+                  <p className="text-sm text-gray-500">Sync records taken by Class Representatives</p>
+                </div>
+              </div>
+              <Button variant="secondary" size="sm" icon={X} onClick={() => setShowSyncModal(false)} />
+            </div>
+
+            <div className="space-y-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Select Date</label>
+                  <input 
+                    type="date" 
+                    value={syncDate} 
+                    onChange={e => setSyncDate(e.target.value)} 
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Unit <span className="text-red-500">*</span></label>
+                  <input 
+                    type="text" 
+                    value={syncUnit} 
+                    onChange={e => setSyncUnit(e.target.value)} 
+                    placeholder="e.g., Unit 1" 
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Topic Covered</label>
+                <input 
+                  type="text" 
+                  value={syncTopic} 
+                  onChange={e => setSyncTopic(e.target.value)} 
+                  placeholder="e.g., Introduction" 
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Session Type</label>
+                <div className="grid grid-cols-2 gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setSyncSessionType('class')}
+                    className={`flex items-center justify-center gap-2 py-2.5 px-3 rounded-lg border-2 transition-all ${
+                      syncSessionType === 'class'
+                        ? 'border-blue-500 bg-blue-50 text-blue-700'
+                        : 'border-gray-200 text-gray-500 hover:border-gray-300'
+                    }`}
+                  >
+                    <BookOpen className="w-4 h-4" />
+                    <span className="font-medium text-sm">Class (×1)</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setSyncSessionType('lab')}
+                    className={`flex items-center justify-center gap-2 py-2.5 px-3 rounded-lg border-2 transition-all ${
+                      syncSessionType === 'lab'
+                        ? 'border-purple-500 bg-purple-50 text-purple-700'
+                        : 'border-gray-200 text-gray-500 hover:border-gray-300'
+                    }`}
+                  >
+                    <FlaskConical className="w-4 h-4" />
+                    <span className="font-medium text-sm">Lab (×3)</span>
+                  </button>
+                </div>
+              </div>
+
+              <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg flex items-start gap-2">
+                <Clock className="w-4 h-4 text-blue-600 mt-0.5 shrink-0" />
+                <p className="text-xs text-blue-700">
+                  This will fetch the CR's attendance for {syncDate} and apply it to this subject. 
+                  If you already took attendance for this date, the sync will be blocked.
+                </p>
+              </div>
+
+              <div className="flex justify-end gap-2 pt-2">
+                <Button variant="secondary" onClick={() => setShowSyncModal(false)}>Cancel</Button>
+                <Button icon={CalendarCheck} onClick={handleSyncSubmit} loading={syncing}>
+                  Sync Attendance
+                </Button>
+              </div>
+            </div>
+          </Card>
         </div>
       )}
     </div>

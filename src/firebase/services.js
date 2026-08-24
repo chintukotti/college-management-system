@@ -128,6 +128,26 @@ export const loginUser = async (identifier, password) => {
         throw new Error('Invalid password');
       }
 
+      // ✅ NEW: Create session token for security
+      const user = auth.currentUser;
+      if (user) {
+        const sessionExpiry = new Date();
+        sessionExpiry.setHours(sessionExpiry.getHours() + 24); // 24 hour session
+
+        try {
+          await setDoc(doc(db, 'studentSessions', user.uid), {
+            studentId: studentId,
+            anonymousUid: user.uid,
+            role: studentData.role,
+            createdAt: new Date(),
+            expiresAt: sessionExpiry
+          });
+        } catch (sessionError) {
+          console.warn('Failed to create session token:', sessionError);
+          // Continue anyway - session is optional for backward compatibility
+        }
+      }
+
       return { success: true, user: { uid: studentId, ...studentData } };
     }
 
@@ -154,6 +174,17 @@ export const logoutUser = async (role) => {
   try {
     // Never leave one account's cached data behind for the next sign-in
     clearCache();
+    
+    // ✅ NEW: Clean up session token for students
+    if (role === 'student' && auth.currentUser) {
+      try {
+        await deleteDoc(doc(db, 'studentSessions', auth.currentUser.uid));
+      } catch (error) {
+        console.warn('Failed to delete session:', error);
+        // Continue anyway - session cleanup is optional
+      }
+    }
+    
     if (role === 'student') return { success: true };
     await signOut(auth);
     return { success: true };
@@ -1079,61 +1110,49 @@ export const saveSessionAttendance = async ({ subjectId, classId, date, records,
 
     await batch.commit();
 
-    // ✅ NEW: Send emails to absent students via Cloudflare Worker
-    const absentStudents = records
-      .filter(rec => rec.status === 'absent')
-      .map(rec => ({
-        name: rec.studentName,
-        email: `${rec.studentId.toLowerCase()}@rguktsklm.ac.in`
-      }));
+    // ✅ NEW: Only send emails if skipEmail is NOT true
+    if (!meta.skipEmail) {
+      const absentStudents = records
+        .filter(rec => rec.status === 'absent')
+        .map(rec => ({
+          name: rec.studentName,
+          email: `${rec.studentId.toLowerCase()}@rguktsklm.ac.in`
+        }));
 
-    if (absentStudents.length > 0 && process.env.REACT_APP_WORKER_URL) {
-      console.log(`📝 Attempting to send emails to ${absentStudents.length} absent students...`);
-      console.log("Student Data being sent:", absentStudents);
-      
-      try {
-        const response = await fetch(process.env.REACT_APP_WORKER_URL, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'X-Secret-Key': process.env.REACT_APP_WORKER_SECRET
-          },
-          body: JSON.stringify({
-            students: absentStudents,
-            meta: {
-              subjectName: meta.subjectName,
-              date: date,
-              time: meta.time,
-              teacherName: meta.teacherName
-            }
-          })
-        });
-        
-        const data = await response.json();
-        console.log("✅ Cloudflare Worker Response:", data);
-
-        // If Brevo rejected the emails, this will print the EXACT reason why!
-        if (data.details) {
-          data.details.forEach(d => {
-            if (!d.success) {
-              console.error(`❌ Failed to send to ${d.email}. Brevo Error:`, d.brevoError);
-            }
+      if (absentStudents.length > 0 && process.env.REACT_APP_WORKER_URL) {
+        console.log(`📝 Attempting to send emails to ${absentStudents.length} absent students...`);
+        try {
+          const response = await fetch(process.env.REACT_APP_WORKER_URL, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'X-Secret-Key': process.env.REACT_APP_WORKER_SECRET
+            },
+            body: JSON.stringify({
+              students: absentStudents,
+              meta: {
+                subjectName: meta.subjectName,
+                date: date,
+                time: meta.time,
+                teacherName: meta.teacherName
+              }
+            })
           });
-        } else if (!data.success) {
-          console.error("❌ Worker Error:", data.error);
+          const data = await response.json();
+          console.log("✅ Cloudflare Worker Response:", data);
+          if (data.details) {
+            data.details.forEach(d => {
+              if (!d.success) console.error(`❌ Failed to send to ${d.email}. Brevo Error:`, d.brevoError);
+            });
+          } else if (!data.success) {
+            console.error("❌ Worker Error:", data.error);
+          }
+        } catch (emailError) {
+          console.error("🚨 Network error calling Cloudflare Worker:", emailError);
         }
-
-      } catch (emailError) {
-        console.error("🚨 Network error calling Cloudflare Worker:", emailError);
-      }
-    } else {
-      if (absentStudents.length === 0) {
-        console.log("ℹ️ No absent students found, no emails sent.");
-      } else if (!process.env.REACT_APP_WORKER_URL) {
-        console.warn("⚠️ REACT_APP_WORKER_URL is missing in your .env file!");
       }
     }
-    // --- END NEW CODE ---
+    // --- END MODIFIED CODE ---
 
     // 2. Subject document — once for the whole session, not once per student
     await updateDoc(doc(db, 'subjects', subjectId), {
@@ -1461,9 +1480,18 @@ export const getAllSemesters = async (adminId = null, force = false) => {
 
 // ==================== ANNOUNCEMENTS MANAGEMENT ====================
 
+// Find createAnnouncement and update it to write to the class doc
 export const createAnnouncement = async (announcementData) => {
   try {
     const docRef = await addDoc(collection(db, 'announcements'), { ...announcementData, createdAt: serverTimestamp() });
+    
+    // ✅ NEW: Update the class document with the latest announcement time
+    if (announcementData.classId) {
+      await updateDoc(doc(db, 'classes', announcementData.classId), {
+        lastAnnouncementAt: serverTimestamp()
+      });
+    }
+
     invalidatePrefix('ann:');
     return { success: true, id: docRef.id };
   } catch (error) {
@@ -1592,51 +1620,33 @@ export const subscribeToClassAnnouncements = (classId, onData, onError) => {
  * ✅ FIX: Removed orderBy to avoid requiring a composite index.
  * It now fetches the class announcements and finds the max timestamp in JS.
  */
+
+// Replace subscribeToLatestAnnouncement with this optimized version
 export const subscribeToLatestAnnouncement = (classId, onTime) => {
   if (!classId) {
     onTime(0);
     return () => {};
   }
 
-  const cached = getCache(`ann:latest:${classId}`, TTL.DAY);
-  if (typeof cached === 'number') onTime(cached);
-
-  let cancelled = false;
-
+  // ✅ NEW: Listen to the SINGLE class document instead of querying announcements
+  // This costs 1 read, or 0 reads if served from Firestore's local cache.
   try {
-    // Query without orderBy to prevent "Missing Index" errors
-    const q = query(
-      collection(db, 'announcements'),
-      where('classId', '==', classId)
-    );
-
-    const unsubscribe = onSnapshot(
-      q,
-      (snapshot) => {
-        if (cancelled) return;
-        
-        let latestMs = 0;
-        // Find the most recent announcement manually in JS
-        snapshot.docs.forEach(doc => {
-          const seconds = doc.data().createdAt?.seconds || 0;
-          const ms = seconds * 1000;
-          if (ms > latestMs) {
-            latestMs = ms;
-          }
-        });
-
-        setCache(`ann:latest:${classId}`, latestMs);
-        onTime(latestMs);
-      },
-      (error) => {
-        console.warn('Latest-announcement listener failed:', error?.message);
+    const unsubscribe = onSnapshot(doc(db, 'classes', classId), (docSnap) => {
+      if (docSnap.exists()) {
+        const ts = docSnap.data().lastAnnouncementAt;
+        const ms = ts && ts.seconds ? ts.seconds * 1000 : 0;
+        onTime(ms);
+      } else {
+        onTime(0);
       }
-    );
+    }, (error) => {
+      console.warn('Class listener failed:', error?.message);
+    });
 
-    return () => { cancelled = true; unsubscribe(); };
+    return () => unsubscribe();
   } catch (error) {
-    console.error('Error setting up announcement listener:', error);
-    return () => { cancelled = true; };
+    console.error('Error setting up class listener:', error);
+    return () => {};
   }
 };
 
