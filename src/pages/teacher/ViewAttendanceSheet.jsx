@@ -34,11 +34,12 @@ const ViewAttendanceSheet = () => {
   // ✅ NEW: Sync CR Attendance State
   const [showSyncModal, setShowSyncModal] = useState(false);
   const [syncDate, setSyncDate] = useState(getTodayDate());
+  const [syncSubject, setSyncSubject] = useState(''); // ✅ NEW
   const [syncUnit, setSyncUnit] = useState('');
   const [syncTopic, setSyncTopic] = useState('');
   const [syncSessionType, setSyncSessionType] = useState('class');
   const [syncing, setSyncing] = useState(false);
-
+  
   const scrollRef = useRef(null);
   const [isDragging, setIsDragging] = useState(false);
   const [startX, setStartX] = useState(0);
@@ -252,20 +253,40 @@ const ViewAttendanceSheet = () => {
     setSavingManual(false);
   };
 
+   // ✅ NEW: State for available subjects on the selected sync date
+  const [availableSyncSubjects, setAvailableSyncSubjects] = useState([]);
+
+  // ✅ NEW: Fetch subjects when sync date changes
+  useEffect(() => {
+    if (showSyncModal && syncDate) {
+      const fetchCRData = async () => {
+        const crRes = await getClassAttendance(classId);
+        if (crRes.success) {
+          const dayRecords = crRes.data.filter(l => l.date === syncDate);
+          setAvailableSyncSubjects(dayRecords);
+          if (dayRecords.length > 0) {
+            setSyncSubject(dayRecords[0].subjectName); // Default to first subject
+          } else {
+            setSyncSubject(''); // No subjects
+          }
+        }
+      };
+      fetchCRData();
+    }
+  }, [showSyncModal, syncDate, classId]);
+
   // ✅ NEW: Handle CR Sync Submission
   const handleSyncSubmit = async () => {
     if (!syncDate) return toast.error("Please select a date.");
     if (!syncUnit.trim()) return toast.error("Unit is required.");
+    if (!syncSubject) return toast.error("Please select a subject from CR's records.");
     
-    // ✅ NEW: Prevent future dates
     if (syncDate > getTodayDate()) {
       return toast.error("Cannot sync attendance for future dates.");
     }
 
-    // Check if teacher already took attendance for this date
     if (uniqueDates.includes(syncDate)) {
-      // ✅ FIX 6: Made the error message more specific
-      return toast.error(`You already took attendance for ${syncDate}. Cannot overwrite with CR Sync.`);
+      return toast.error(`Attendance for ${syncDate} already exists. You cannot overwrite it.`);
     }
 
     setSyncing(true);
@@ -273,9 +294,10 @@ const ViewAttendanceSheet = () => {
       const crRes = await getClassAttendance(classId);
       if (!crRes.success) throw new Error("Failed to fetch CR attendance.");
 
-      const crLog = crRes.data.find(l => l.date === syncDate);
+      // Find the specific subject log for that date
+      const crLog = crRes.data.find(l => l.date === syncDate && l.subjectName === syncSubject);
       if (!crLog || !crLog.records || crLog.records.length === 0) {
-        toast.error(`CR has not submitted attendance for ${syncDate}.`);
+        toast.error(`CR has not submitted attendance for ${syncSubject} on ${syncDate}.`);
         setSyncing(false);
         return;
       }
@@ -312,7 +334,7 @@ const ViewAttendanceSheet = () => {
           teacherName: currentUser.name,
           unit: syncUnit,
           topic: syncTopic,
-          skipEmail: true // ✅ NEW: Skip emails for CR Sync
+          skipEmail: true 
         }
       });
 
@@ -708,54 +730,42 @@ const ViewAttendanceSheet = () => {
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Unit <span className="text-red-500">*</span></label>
-                  <input 
-                    type="text" 
-                    value={syncUnit} 
-                    onChange={e => setSyncUnit(e.target.value)} 
-                    placeholder="e.g., Unit 1" 
+                  <label className="block text-sm font-medium text-gray-700 mb-1">CR Subject</label>
+                  <select 
+                    value={syncSubject} 
+                    onChange={e => setSyncSubject(e.target.value)}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500"
-                  />
+                  >
+                    {availableSyncSubjects.length === 0 ? (
+                      <option value="">No CR records for this date</option>
+                    ) : (
+                      availableSyncSubjects.map(sub => (
+                        <option key={sub.id} value={sub.subjectName}>{sub.subjectName}</option>
+                      ))
+                    )}
+                  </select>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Unit <span className="text-red-500">*</span></label>
+                  <input type="text" value={syncUnit} onChange={e => setSyncUnit(e.target.value)} placeholder="e.g., Unit 1" className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500" />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Topic Covered</label>
+                  <input type="text" value={syncTopic} onChange={e => setSyncTopic(e.target.value)} placeholder="e.g., Introduction" className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500" />
                 </div>
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Topic Covered</label>
-                <input 
-                  type="text" 
-                  value={syncTopic} 
-                  onChange={e => setSyncTopic(e.target.value)} 
-                  placeholder="e.g., Introduction" 
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Session Type</label>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Count as Session Type</label>
                 <div className="grid grid-cols-2 gap-3">
-                  <button
-                    type="button"
-                    onClick={() => setSyncSessionType('class')}
-                    className={`flex items-center justify-center gap-2 py-2.5 px-3 rounded-lg border-2 transition-all ${
-                      syncSessionType === 'class'
-                        ? 'border-blue-500 bg-blue-50 text-blue-700'
-                        : 'border-gray-200 text-gray-500 hover:border-gray-300'
-                    }`}
-                  >
-                    <BookOpen className="w-4 h-4" />
-                    <span className="font-medium text-sm">Class (×1)</span>
+                  <button type="button" onClick={() => setSyncSessionType('class')} className={`flex items-center justify-center gap-2 py-2.5 px-3 rounded-lg border-2 transition-all ${syncSessionType === 'class' ? 'border-blue-500 bg-blue-50 text-blue-700' : 'border-gray-200 text-gray-500 hover:border-gray-300'}`}>
+                    <BookOpen className="w-4 h-4" /><span className="font-medium text-sm">Class (×1)</span>
                   </button>
-                  <button
-                    type="button"
-                    onClick={() => setSyncSessionType('lab')}
-                    className={`flex items-center justify-center gap-2 py-2.5 px-3 rounded-lg border-2 transition-all ${
-                      syncSessionType === 'lab'
-                        ? 'border-purple-500 bg-purple-50 text-purple-700'
-                        : 'border-gray-200 text-gray-500 hover:border-gray-300'
-                    }`}
-                  >
-                    <FlaskConical className="w-4 h-4" />
-                    <span className="font-medium text-sm">Lab (×3)</span>
+                  <button type="button" onClick={() => setSyncSessionType('lab')} className={`flex items-center justify-center gap-2 py-2.5 px-3 rounded-lg border-2 transition-all ${syncSessionType === 'lab' ? 'border-purple-500 bg-purple-50 text-purple-700' : 'border-gray-200 text-gray-500 hover:border-gray-300'}`}>
+                    <FlaskConical className="w-4 h-4" /><span className="font-medium text-sm">Lab (×3)</span>
                   </button>
                 </div>
               </div>
@@ -763,14 +773,14 @@ const ViewAttendanceSheet = () => {
               <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg flex items-start gap-2">
                 <Clock className="w-4 h-4 text-blue-600 mt-0.5 shrink-0" />
                 <p className="text-xs text-blue-700">
-                  This will fetch the CR's attendance for {syncDate} and apply it to this subject. 
+                  This will fetch the CR's attendance for {syncSubject || "the selected subject"} on {syncDate} and apply it to this subject. 
                   If you already took attendance for this date, the sync will be blocked.
                 </p>
               </div>
 
               <div className="flex justify-end gap-2 pt-2">
                 <Button variant="secondary" onClick={() => setShowSyncModal(false)}>Cancel</Button>
-                <Button icon={CalendarCheck} onClick={handleSyncSubmit} loading={syncing}>
+                <Button icon={CalendarCheck} onClick={handleSyncSubmit} loading={syncing} disabled={!syncSubject}>
                   Sync Attendance
                 </Button>
               </div>

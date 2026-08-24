@@ -563,13 +563,18 @@ const ManageClasses = () => {
                   </div>
                 ) : (
                   <>
-                    <div className="flex items-center justify-between gap-2 px-4 sm:px-5 py-3 bg-gray-50 border-b-2 border-gray-100">
+                                        <div className="flex items-center justify-between gap-2 px-4 sm:px-5 py-3 bg-gray-50 border-b-2 border-gray-100">
                       <p className="text-sm text-gray-700 font-medium">
                         <span className="font-bold text-red-600">{globalLowAtt.length}</span> student{globalLowAtt.length > 1 ? 's' : ''} need attention
                       </p>
                       <div className="flex items-center gap-3">
                         <button onClick={() => fetchGlobalLowAttendance(true)} className="text-sm text-gray-600 hover:text-gray-900 inline-flex items-center gap-1.5 font-medium">
                           <RefreshCw className="w-3.5 h-3.5" /> Re-check
+                        </button>
+                        {/* ✅ NEW: Rebuild totals button is now ALWAYS visible! */}
+                        <button onClick={handleRebuildStats} disabled={rebuilding} className="text-sm text-gray-600 hover:text-gray-900 inline-flex items-center gap-1.5 font-medium disabled:opacity-50">
+                          {rebuilding ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <RefreshCw className="w-3.5 h-3.5" />}
+                          {rebuilding ? 'Rebuilding...' : 'Rebuild Totals'}
                         </button>
                         <Button size="sm" variant="secondary" icon={Download} onClick={handleExportGlobal}>Export</Button>
                       </div>

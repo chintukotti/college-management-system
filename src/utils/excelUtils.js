@@ -1,6 +1,7 @@
-import * as XLSX from 'xlsx';
+// import * as XLSX from 'xlsx';
 import { saveAs } from 'file-saver';
 import { getTodayDate } from './helpers';
+import * as XLSX from 'xlsx-js-style';
 
 /**
  * Auto-calculate optimal column widths based on content
@@ -58,6 +59,116 @@ const autoFitColumnsFromJSON = (jsonData, headers, minWidth = 8, maxWidth = 50, 
   return widths;
 };
 
+/**
+ * ✅ Common Border Style Definition
+ */
+const borderStyle = {
+  top: { style: 'thin', color: { rgb: '000000' } },
+  bottom: { style: 'thin', color: { rgb: '000000' } },
+  left: { style: 'thin', color: { rgb: '000000' } },
+  right: { style: 'thin', color: { rgb: '000000' } }
+};
+
+/**
+ * ✅ Apply styling to worksheet created from JSON
+ */
+const applyStylesToJSONSheet = (ws, data, headers) => {
+  if (!data || data.length === 0) return;
+  
+  const keys = headers || Object.keys(data[0]);
+  const numCols = keys.length;
+  const numRows = data.length + 1; // +1 for header row
+
+  const headerStyle = {
+    font: { bold: true },
+    alignment: { horizontal: 'center', vertical: 'center' },
+    border: borderStyle,
+    fill: { fgColor: { rgb: 'E7E6E6' } }
+  };
+
+  const dataStyle = {
+    border: borderStyle
+  };
+
+  const centerStyle = {
+    alignment: { horizontal: 'center', vertical: 'center' },
+    border: borderStyle
+  };
+
+  // Apply header styles
+  for (let c = 0; c < numCols; c++) {
+    const cellAddress = XLSX.utils.encode_cell({ r: 0, c });
+    if (ws[cellAddress]) {
+      ws[cellAddress].s = headerStyle;
+    }
+  }
+
+  // Apply data styles
+  for (let r = 1; r < numRows; r++) {
+    for (let c = 0; c < numCols; c++) {
+      const cellAddress = XLSX.utils.encode_cell({ r, c });
+      if (ws[cellAddress]) {
+        // Center align first column (usually S.No or ID)
+        if (c === 0) {
+          ws[cellAddress].s = centerStyle;
+        } else {
+          ws[cellAddress].s = dataStyle;
+        }
+      }
+    }
+  }
+};
+
+/**
+ * ✅ Apply styling to worksheet created from AOA
+ */
+const applyStylesToAOASheet = (ws, aoa, headerRows = 1) => {
+  if (!aoa || aoa.length === 0) return;
+  
+  const numCols = aoa[0].length;
+  const numRows = aoa.length;
+
+  const headerStyle = {
+    font: { bold: true },
+    alignment: { horizontal: 'center', vertical: 'center' },
+    border: borderStyle,
+    fill: { fgColor: { rgb: 'E7E6E6' } }
+  };
+
+  const dataStyle = {
+    border: borderStyle
+  };
+
+  const centerStyle = {
+    alignment: { horizontal: 'center', vertical: 'center' },
+    border: borderStyle
+  };
+
+  // Apply header styles
+  for (let r = 0; r < headerRows; r++) {
+    for (let c = 0; c < numCols; c++) {
+      const cellAddress = XLSX.utils.encode_cell({ r, c });
+      if (ws[cellAddress]) {
+        ws[cellAddress].s = headerStyle;
+      }
+    }
+  }
+
+  // Apply data styles
+  for (let r = headerRows; r < numRows; r++) {
+    for (let c = 0; c < numCols; c++) {
+      const cellAddress = XLSX.utils.encode_cell({ r, c });
+      if (ws[cellAddress]) {
+        // Center align first two columns (S.No and ID)
+        if (c === 0 || c === 1) {
+          ws[cellAddress].s = centerStyle;
+        } else {
+          ws[cellAddress].s = dataStyle;
+        }
+      }
+    }
+  }
+};
 
 /**
  * Read Excel file and convert to JSON
@@ -111,7 +222,6 @@ export const readExcelFile = (file) => {
     reader.readAsArrayBuffer(file);
   });
 };
-
 
 /**
  * Validate Excel data for student creation
@@ -192,31 +302,18 @@ export const validateStudentExcelData = (data) => {
   };
 };
 
-
-// ... [Keep all previous code in excelUtils.js the same] ...
-
 /**
  * Create attendance Excel file
  * Generates 2 Sheets:
  * 1. Attendance Sheet (Matrix): ID, Name, [Dates...], Total Classes, Total Labs, Grand Total, Percentage
  * 2. Detailed: List of individual records sorted by Name (then Date)
- * 
- * @param {Array} attendanceData - Records Array
- * @param {String} subjectName 
- * @param {String} className 
- * @param {Object} dateCapacities 
- * @param {Array} studentsData - UI Students array to maintain exact UI order
  */
 export const createAttendanceExcel = (attendanceData, subjectName, className, dateCapacities = {}, studentsData = []) => {
   // --- STEP 1: Analyze Dates and Get Session Capacities from parameter ---
-
-  // Get unique dates sorted
   const uniqueDates = [...new Set(attendanceData.map(a => a.date))].sort();
 
-  // Use provided dateCapacities, or fall back to records if not provided
   let finalDateCapacities = { ...dateCapacities };
 
-  // If dateCapacities not provided, try to infer from records (legacy fallback)
   if (Object.keys(finalDateCapacities).length === 0) {
     uniqueDates.forEach(date => {
       const recordsOnDate = attendanceData.filter(a => a.date === date);
@@ -226,39 +323,35 @@ export const createAttendanceExcel = (attendanceData, subjectName, className, da
   }
 
   // --- STEP 2: Prepare Student Data ---
-
   const studentMap = new Map();
 
   attendanceData.forEach(record => {
     if (!studentMap.has(record.oderId)) {
       studentMap.set(record.oderId, {
         id: record.studentId,
-        oderId: record.oderId, // ✅ Added to match with UI array
+        oderId: record.oderId,
         name: record.studentName,
-        records: {}, // Key: date, Value: { status, count, sessionType }
-        totalAttended: 0,   // Sum of counts where present
-        totalPossible: 0    // Sum of date capacities
+        records: {},
+        totalAttended: 0,
+        totalPossible: 0
       });
     }
 
     const student = studentMap.get(record.oderId);
     const count = record.count || 1;
 
-    // Store record for the matrix view
     student.records[record.date] = {
       status: record.status,
       count: count,
       sessionType: record.sessionType
     };
 
-    // Calculate Attended (Numerator)
     if (record.status === 'present') {
       student.totalAttended += count;
     }
   });
 
-  // --- STEP 3: Calculate Total Possible (Denominator) per Student ---
-
+  // --- STEP 3: Calculate Total Possible per Student ---
   studentMap.forEach(student => {
     uniqueDates.forEach(date => {
       if (student.records[date]) {
@@ -268,8 +361,6 @@ export const createAttendanceExcel = (attendanceData, subjectName, className, da
   });
 
   // --- STEP 4: BUILD SHEET 1 (ATTENDANCE MATRIX) ---
-
-  // 1. Headers
   const matrixHeaders = ['ID', 'Name'];
 
   uniqueDates.forEach(date => {
@@ -285,14 +376,11 @@ export const createAttendanceExcel = (attendanceData, subjectName, className, da
     matrixHeaders.push(headerLabel);
   });
 
-  // Add Summary Columns
   matrixHeaders.push('Total Attended', 'Grand Total', 'Percentage');
 
-  // 2. Rows
   const matrixRows = [];
   const students = Array.from(studentMap.values());
 
-  // ✅ Sort students to exactly match the UI order if studentsData is provided
   if (studentsData && studentsData.length > 0) {
     const orderMap = new Map();
     studentsData.forEach((s, idx) => orderMap.set(s.id, idx));
@@ -303,14 +391,12 @@ export const createAttendanceExcel = (attendanceData, subjectName, className, da
       return idxA - idxB;
     });
   } else {
-    // Fallback to sorting by ID if no UI array is passed
     students.sort((a, b) => a.id.localeCompare(b.id));
   }
 
   students.forEach(student => {
     const row = [student.id, student.name];
 
-    // Fill Date Columns
     uniqueDates.forEach(date => {
       const rec = student.records[date];
       if (rec) {
@@ -324,7 +410,6 @@ export const createAttendanceExcel = (attendanceData, subjectName, className, da
       }
     });
 
-    // Fill Summary Columns
     row.push(student.totalAttended);
     row.push(student.totalPossible);
 
@@ -337,7 +422,6 @@ export const createAttendanceExcel = (attendanceData, subjectName, className, da
   });
 
   // --- STEP 5: BUILD SHEET 2 (DETAILED) ---
-  // (Kept the same as your original code)
   const detailedData = [];
   const sortedData = [...attendanceData].sort((a, b) => {
     const nameCompare = a.studentName.localeCompare(b.studentName);
@@ -357,22 +441,23 @@ export const createAttendanceExcel = (attendanceData, subjectName, className, da
   });
 
   // --- STEP 6: CREATE WORKBOOK ---
-
   const workbook = XLSX.utils.book_new();
 
-  // Sheet 1 — auto-fit columns
+  // Sheet 1 — auto-fit columns + styling
   const allMatrixAoa = [matrixHeaders, ...matrixRows];
   const matrixSheet = XLSX.utils.aoa_to_sheet(allMatrixAoa);
   matrixSheet['!cols'] = autoFitColumns(allMatrixAoa);
+  applyStylesToAOASheet(matrixSheet, allMatrixAoa, 1);
   XLSX.utils.book_append_sheet(workbook, matrixSheet, 'Attendance Sheet');
 
-  // Sheet 2 — auto-fit columns
+  // Sheet 2 — auto-fit columns + styling
   const detailedSheet = XLSX.utils.json_to_sheet(detailedData);
   detailedSheet['!cols'] = autoFitColumnsFromJSON(detailedData);
+  applyStylesToJSONSheet(detailedSheet, detailedData);
   XLSX.utils.book_append_sheet(workbook, detailedSheet, 'Detailed');
 
   // Generate File
-  const excelBuffer = XLSX.write(workbook, { bookType: 'xlsx', type: 'array' });
+  const excelBuffer = XLSX.write(workbook, { bookType: 'xlsx', type: 'array', cellStyles: true });
   const blob = new Blob([excelBuffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
 
   const fileName = `Attendance_${subjectName}_${className}_${getTodayDate()}.xlsx`;
@@ -380,8 +465,6 @@ export const createAttendanceExcel = (attendanceData, subjectName, className, da
 
   return fileName;
 };
-
-// ... [Keep all remaining code in excelUtils.js the same] ...
 
 /**
  * Create sample Excel template for student upload
@@ -395,18 +478,14 @@ export const downloadSampleExcel = () => {
 
   const workbook = XLSX.utils.book_new();
   const worksheet = XLSX.utils.json_to_sheet(sampleData);
-
-  // Auto-fit columns
   worksheet['!cols'] = autoFitColumnsFromJSON(sampleData);
-
+  applyStylesToJSONSheet(worksheet, sampleData);
   XLSX.utils.book_append_sheet(workbook, worksheet, 'Students');
 
-  const excelBuffer = XLSX.write(workbook, { bookType: 'xlsx', type: 'array' });
+  const excelBuffer = XLSX.write(workbook, { bookType: 'xlsx', type: 'array', cellStyles: true });
   const blob = new Blob([excelBuffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
-
   saveAs(blob, 'Student_Upload_Template.xlsx');
 };
-
 
 /**
  * Create Excel for Low Attendance Students
@@ -424,13 +503,11 @@ export const createLowAttendanceExcel = (studentsData, className) => {
 
   const ws = XLSX.utils.json_to_sheet(data);
   const wb = XLSX.utils.book_new();
-
-  // Auto-fit columns
   ws['!cols'] = autoFitColumnsFromJSON(data);
-
+  applyStylesToJSONSheet(ws, data);
   XLSX.utils.book_append_sheet(wb, ws, 'Low Attendance');
 
-  const excelBuffer = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
+  const excelBuffer = XLSX.write(wb, { bookType: 'xlsx', type: 'array', cellStyles: true });
   const blob = new Blob([excelBuffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
 
   const fileName = `Low_Attendance_${className}_${getTodayDate()}.xlsx`;
@@ -438,7 +515,6 @@ export const createLowAttendanceExcel = (studentsData, className) => {
 
   return fileName;
 };
-
 
 /**
  * Create Activity Log Excel
@@ -468,21 +544,18 @@ export const createActivityExcel = (logs, subjectName) => {
     }));
 
     const ws = XLSX.utils.json_to_sheet(data);
-
-    // Auto-fit columns
     ws['!cols'] = autoFitColumnsFromJSON(data);
-
+    applyStylesToJSONSheet(ws, data);
     XLSX.utils.book_append_sheet(workbook, ws, sheetName);
   });
 
-  const excelBuffer = XLSX.write(workbook, { bookType: 'xlsx', type: 'array' });
+  const excelBuffer = XLSX.write(workbook, { bookType: 'xlsx', type: 'array', cellStyles: true });
   const blob = new Blob([excelBuffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
   const fileName = `Activity_${subjectName}_${getTodayDate()}.xlsx`;
   saveAs(blob, fileName);
 
   return fileName;
 };
-
 
 /**
  * Create Global Low Attendance Excel
@@ -507,10 +580,8 @@ export const createGlobalLowAttendanceExcel = (students) => {
   }));
 
   const overallSheet = XLSX.utils.json_to_sheet(overallData);
-
-  // Auto-fit columns
   overallSheet['!cols'] = autoFitColumnsFromJSON(overallData);
-
+  applyStylesToJSONSheet(overallSheet, overallData);
   XLSX.utils.book_append_sheet(workbook, overallSheet, 'Overall');
 
   // 2. Class-wise Sheets
@@ -535,15 +606,13 @@ export const createGlobalLowAttendanceExcel = (students) => {
     }));
 
     const classSheet = XLSX.utils.json_to_sheet(classData);
-
-    // Auto-fit columns
     classSheet['!cols'] = autoFitColumnsFromJSON(classData);
-
+    applyStylesToJSONSheet(classSheet, classData);
     XLSX.utils.book_append_sheet(workbook, classSheet, sheetName);
   });
 
   // Generate File
-  const excelBuffer = XLSX.write(workbook, { bookType: 'xlsx', type: 'array' });
+  const excelBuffer = XLSX.write(workbook, { bookType: 'xlsx', type: 'array', cellStyles: true });
   const blob = new Blob([excelBuffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
   const fileName = `Global_Low_Attendance_${getTodayDate()}.xlsx`;
   saveAs(blob, fileName);
@@ -551,51 +620,170 @@ export const createGlobalLowAttendanceExcel = (students) => {
   return fileName;
 };
 
-
+/**
+ * Create CR Attendance Excel file
+ * Uses AOA and cell merges to group columns by Date (merged) and Subject.
+ */
 export const createCRAttendanceExcel = (students, attendanceLogs) => {
-  const dates = [...new Set(attendanceLogs.map(log => log.date))].sort();
-
-  // Headers
-  const headers = ['S.No', 'ID', 'Name', ...dates, 'Total Present', 'Total Days', 'Percentage'];
-
-  const rows = students.map((student, index) => {
-    const row = {
-      'S.No': index + 1,
-      'ID': student.studentId,
-      'Name': student.name
-    };
-
-    let totalPresent = 0;
-    const totalDays = dates.length;
-
-    dates.forEach(date => {
-      const log = attendanceLogs.find(l => l.date === date);
-      const record = log?.records.find(r => r.studentId === student.id);
-      const status = record ? (record.status === 'present' ? 'P' : 'A') : '-';
-      row[date] = status;
-      if (status === 'P') totalPresent++;
-    });
-
-    row['Total Present'] = totalPresent;
-    row['Total Days'] = totalDays;
-    row['Percentage'] = totalDays > 0 ? Math.round((totalPresent / totalDays) * 100) + '%' : '0%';
-
-    return row;
+  // 1. Sort logs by Date -> Subject
+  const sortedLogs = [...attendanceLogs].sort((a, b) => {
+    const dateCompare = a.date.localeCompare(b.date);
+    if (dateCompare !== 0) return dateCompare;
+    return (a.subjectName || '').localeCompare(b.subjectName || '');
   });
 
-  const ws = XLSX.utils.json_to_sheet(rows, { header: headers });
+  // 2. Group by Date for the top header merge
+  const dateGroups = [];
+  sortedLogs.forEach(log => {
+    const last = dateGroups[dateGroups.length - 1];
+    if (last && last.date === log.date) {
+      last.span++;
+      last.logs.push(log);
+    } else {
+      dateGroups.push({ date: log.date, span: 1, logs: [log] });
+    }
+  });
 
-  // Auto-fit columns
-  ws['!cols'] = autoFitColumnsFromJSON(rows, headers);
+  // 3. Build AOA (Array of Arrays)
+  const aoa = [];
+  
+  // Row 0: Put Base Headers in the top row so they are visible when merged
+  const headerRow1 = ['S.No', 'ID', 'Name']; 
+  dateGroups.forEach(dg => {
+    headerRow1.push(dg.date);
+    for (let i = 1; i < dg.span; i++) headerRow1.push(''); // Empty for merged cells
+  });
+  headerRow1.push('Total Present', 'Total Sessions', 'Percentage');
+  aoa.push(headerRow1);
+
+  // Row 1: Subject Headers (Leave base headers empty because they are merged vertically)
+  const headerRow2 = ['', '', '']; 
+  dateGroups.forEach(dg => {
+    dg.logs.forEach(log => headerRow2.push(log.subjectName || 'N/A'));
+  });
+  headerRow2.push('', '', '');
+  aoa.push(headerRow2);
+
+  // Data Rows
+  students.forEach((student, index) => {
+    const row = [index + 1, student.studentId, student.name];
+    let totalPresent = 0;
+    
+    sortedLogs.forEach(log => {
+      const rec = log.records.find(r => r.studentId === student.id);
+      const status = rec ? (rec.status === 'present' ? 'P' : 'A') : '-';
+      row.push(status);
+      if (status === 'P') totalPresent++;
+    });
+    
+    const totalSessions = sortedLogs.length;
+    row.push(totalPresent);
+    row.push(totalSessions);
+    row.push(totalSessions > 0 ? Math.round((totalPresent / totalSessions) * 100) + '%' : '0%');
+    aoa.push(row);
+  });
+
+  // 4. Create Workbook & Sheet
+  const ws = XLSX.utils.aoa_to_sheet(aoa);
+
+  // 5. Define Merges
+  const merges = [];
+  
+  // Merge Base Headers vertically (Row 0 to Row 1)
+  merges.push({ s: { r: 0, c: 0 }, e: { r: 1, c: 0 } }); // S.No
+  merges.push({ s: { r: 0, c: 1 }, e: { r: 1, c: 1 } }); // ID
+  merges.push({ s: { r: 0, c: 2 }, e: { r: 1, c: 2 } }); // Name
+
+  // Merge Date headers horizontally (Row 0)
+  let colIndex = 3;
+  dateGroups.forEach(dg => {
+    if (dg.span > 1) {
+      merges.push({
+        s: { r: 0, c: colIndex },
+        e: { r: 0, c: colIndex + dg.span - 1 }
+      });
+    }
+    colIndex += dg.span;
+  });
+
+  // Merge Summary headers vertically
+  const summaryStartCol = 3 + sortedLogs.length;
+  merges.push({ s: { r: 0, c: summaryStartCol }, e: { r: 1, c: summaryStartCol } });
+  merges.push({ s: { r: 0, c: summaryStartCol + 1 }, e: { r: 1, c: summaryStartCol + 1 } });
+  merges.push({ s: { r: 0, c: summaryStartCol + 2 }, e: { r: 1, c: summaryStartCol + 2 } });
+
+  ws['!merges'] = merges;
+
+  // 6. ✅ Define Styles with Borders
+  const headerStyle = {
+    font: { bold: true },
+    alignment: { horizontal: 'center', vertical: 'center' },
+    border: borderStyle,
+    fill: { fgColor: { rgb: 'E7E6E6' } }
+  };
+
+  const centerStyle = {
+    alignment: { horizontal: 'center', vertical: 'center' },
+    border: borderStyle
+  };
+
+  const dataStyle = {
+    border: borderStyle
+  };
+
+  // 7. ✅ Apply Styles to All Cells
+  const totalCols = headerRow1.length;
+  const totalRows = aoa.length;
+
+  // Apply styles to header rows (Row 0 and Row 1)
+  for (let c = 0; c < totalCols; c++) {
+    const cellAddress1 = XLSX.utils.encode_cell({ r: 0, c });
+    const cellAddress2 = XLSX.utils.encode_cell({ r: 1, c });
+    
+    if (ws[cellAddress1]) {
+      ws[cellAddress1].s = headerStyle;
+    }
+    if (ws[cellAddress2]) {
+      ws[cellAddress2].s = headerStyle;
+    }
+  }
+
+  // Apply styles to data rows
+  for (let r = 2; r < totalRows; r++) {
+    for (let c = 0; c < totalCols; c++) {
+      const cellAddress = XLSX.utils.encode_cell({ r, c });
+      
+      if (ws[cellAddress]) {
+        // S.No column (column 0) - Center aligned
+        if (c === 0) {
+          ws[cellAddress].s = centerStyle;
+        }
+        // ID column (column 1) - Center aligned
+        else if (c === 1) {
+          ws[cellAddress].s = centerStyle;
+        }
+        // All other columns - Just border
+        else {
+          ws[cellAddress].s = dataStyle;
+        }
+      }
+    }
+  }
+
+  // 8. Auto-fit columns
+  ws['!cols'] = autoFitColumns(aoa);
 
   const wb = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb, ws, 'Attendance');
+  XLSX.utils.book_append_sheet(wb, ws, 'CR Attendance');
 
-  const excelBuffer = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
+  const excelBuffer = XLSX.write(wb, { bookType: 'xlsx', type: 'array', cellStyles: true });
   const blob = new Blob([excelBuffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
   saveAs(blob, `CR_Attendance_Report.xlsx`);
 };
 
+/**
+ * Download Teacher Sample Excel
+ */
 export const downloadTeacherSampleExcel = () => {
   const sampleData = [
     { Name: 'Dr. Ramesh Kumar', Password: 'teacher123', Email: 'ramesh.kumar@rguktsklm.ac.in' },
@@ -606,14 +794,17 @@ export const downloadTeacherSampleExcel = () => {
   const workbook = XLSX.utils.book_new();
   const worksheet = XLSX.utils.json_to_sheet(sampleData);
   worksheet['!cols'] = autoFitColumnsFromJSON(sampleData);
+  applyStylesToJSONSheet(worksheet, sampleData);
   XLSX.utils.book_append_sheet(workbook, worksheet, 'Teachers');
 
-  const excelBuffer = XLSX.write(workbook, { bookType: 'xlsx', type: 'array' });
+  const excelBuffer = XLSX.write(workbook, { bookType: 'xlsx', type: 'array', cellStyles: true });
   const blob = new Blob([excelBuffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
   saveAs(blob, 'Teacher_Upload_Template.xlsx');
 };
 
-
+/**
+ * Download Subject Sample Excel
+ */
 export const downloadSubjectSampleExcel = () => {
   const sampleData = [
     { Subject: 'CNS', 'Subject Code': '23CS3201', Teacher: 'Roopa M' },
@@ -628,9 +819,10 @@ export const downloadSubjectSampleExcel = () => {
   const workbook = XLSX.utils.book_new();
   const worksheet = XLSX.utils.json_to_sheet(sampleData);
   worksheet['!cols'] = autoFitColumnsFromJSON(sampleData);
+  applyStylesToJSONSheet(worksheet, sampleData);
   XLSX.utils.book_append_sheet(workbook, worksheet, 'Subjects');
 
-  const excelBuffer = XLSX.write(workbook, { bookType: 'xlsx', type: 'array' });
+  const excelBuffer = XLSX.write(workbook, { bookType: 'xlsx', type: 'array', cellStyles: true });
   const blob = new Blob([excelBuffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
   saveAs(blob, 'Subject_Upload_Template.xlsx');
 };

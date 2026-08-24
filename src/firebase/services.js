@@ -1874,17 +1874,19 @@ export const checkIfCR = async (studentId, force = false) => {
 
 // ==================== CLASS ATTENDANCE (CR) ====================
 
-export const markClassAttendance = async (classId, date, records, markedBy) => {
+export const markClassAttendance = async (classId, date, subjectName, records, markedBy) => {
   try {
-    const docId = `${classId}_${date}`;
+    // Use a composite ID so a CR can't accidentally create two records for the same subject on the same day
+    const safeSubject = subjectName.toLowerCase().replace(/\s+/g, '-');
+    const docId = `${classId}_${date}_${safeSubject}`;
     const docRef = doc(db, 'classAttendance', docId);
     const existingDoc = await getDoc(docRef);
 
     if (existingDoc.exists()) {
-      throw new Error("Attendance has already been submitted for this class today.");
+      throw new Error(`Attendance for ${subjectName} has already been submitted for this date.`);
     }
 
-    await setDoc(docRef, { classId, date, records, markedBy, markedAt: serverTimestamp() });
+    await setDoc(docRef, { classId, date, subjectName, records, markedBy, markedAt: serverTimestamp() });
     invalidate(keys.classAttendance(classId));
     return { success: true };
   } catch (error) {
@@ -2153,20 +2155,46 @@ export const createClassWithStudents = async (className, description, studentsDa
  * @param {Array} students - Roster (already loaded by the caller)
  * @returns {{success: boolean, data: Array, hasStats: boolean}}
  */
+
+/**
+ * Attendance totals for one class, read from the class document.
+ * ✅ FIX: Now filters stats to ONLY include the current active semester, perfectly matching the Student Dashboard.
+ */
 export const getClassAttendanceSummary = async (classId, students = [], force = false) => {
   try {
-    const classRes = await getClassById(classId, force);
+    // ✅ Fetch class data AND the current valid subjects for this class
+    const [classRes, subjectsRes] = await Promise.all([
+      getClassById(classId, force),
+      getSubjectsForStudent(classId, force)
+    ]);
+    
     if (!classRes.success) return { success: false, error: classRes.error, data: [], hasStats: false };
 
     const stats = classRes.data.attendanceStats || {};
     const hasStats = Object.keys(stats).length > 0;
+
+    // ✅ NEW: Determine the target semester EXACTLY like the Student Dashboard does
+    let targetSemesterId = null;
+    if (subjectsRes.success && subjectsRes.data.length > 0) {
+      targetSemesterId = subjectsRes.data[0].semesterId; // Student Dashboard uses the first subject's semester
+    }
+
+    // ✅ NEW: Only include subjects that belong to this target semester
+    const validSubjectIds = new Set(
+      targetSemesterId 
+        ? subjectsRes.data.filter(s => s.semesterId === targetSemesterId).map(s => s.id)
+        : subjectsRes.data.map(s => s.id)
+    );
 
     const summary = students.map(student => {
       const perSubject = stats[student.id] || {};
       let present = 0;
       let total = 0;
 
-      Object.values(perSubject).forEach(entry => {
+      Object.entries(perSubject).forEach(([subjectId, entry]) => {
+        // ✅ Only count the attendance if the subject belongs to the current semester!
+        if (!validSubjectIds.has(subjectId)) return;
+        
         if (!entry || typeof entry !== 'object') return;
         present += entry.present || 0;
         total += entry.total || 0;
@@ -2398,7 +2426,7 @@ export const changeTeacherPassword = async (currentPassword, newPassword) => {
 };
 
 // ==================== CR ATTENDANCE LOG ====================
-export const updateClassAttendance = async (recordId, records, classId, editedBy, editorName) => {
+export const updateClassAttendance = async (recordId, records, classId, subjectName, editedBy, editorName) => {
   try {
     const ref = doc(db, 'classAttendance', recordId);
     const existingSnap = await getDoc(ref);
@@ -2406,7 +2434,6 @@ export const updateClassAttendance = async (recordId, records, classId, editedBy
     
     await updateDoc(ref, { records, updatedAt: serverTimestamp() });
     
-    // Compare and log changes
     const changedStudents = [];
     records.forEach(newRec => {
       const oldRec = existingRecords.find(r => r.studentId === newRec.studentId);
@@ -2423,6 +2450,7 @@ export const updateClassAttendance = async (recordId, records, classId, editedBy
       await addDoc(collection(db, 'crAttendanceLogs'), {
         classId,
         classAttendanceId: recordId,
+        subjectName: subjectName || 'Unknown Subject',
         changedStudents,
         editedBy: editedBy || null,
         editorName: editorName || 'Unknown CR',
