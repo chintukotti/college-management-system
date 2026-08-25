@@ -2096,11 +2096,24 @@ export const createClassWithStudents = async (className, description, studentsDa
 
     const existingSet = new Set(errors.map(e => e.split('"')[1]));
 
-    studentsData.forEach(student => {
+    // Filter out duplicates to get the final valid list
+    const validStudents = studentsData.filter(student => {
       const studentId = student.id.toUpperCase();
-      if (duplicateInUpload.has(studentId)) return;
-      if (existingSet.has(studentId)) return;
+      if (duplicateInUpload.has(studentId)) return false;
+      if (existingSet.has(studentId)) return false;
+      return true;
+    });
 
+    // ✅ NEW: Sort the valid students by their Student ID before assigning the 'order' field
+    validStudents.sort((a, b) => {
+      const idA = a.id.toUpperCase();
+      const idB = b.id.toUpperCase();
+      return idA.localeCompare(idB, undefined, { numeric: true, sensitivity: 'base' });
+    });
+
+    // Create documents with the sequential 'order' index
+    validStudents.forEach((student, index) => {
+      const studentId = student.id.toUpperCase();
       const studentRef = doc(db, 'users', studentId);
       batch.set(studentRef, {
         uid: studentId,
@@ -2112,6 +2125,7 @@ export const createClassWithStudents = async (className, description, studentsDa
         role: 'student',
         classId,
         className,
+        order: index, // ✅ NEW: Saves the sorted order to the database
         createdAt: serverTimestamp(),
         createdBy
       });
@@ -2139,7 +2153,6 @@ export const createClassWithStudents = async (className, description, studentsDa
     return { success: false, error: error.message };
   }
 };
-
 
 // ==================== ATTENDANCE STATS ====================
 

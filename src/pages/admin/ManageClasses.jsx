@@ -35,52 +35,27 @@ import {
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 
-// Enhanced color themes for cards - EXACTLY 5 COLORS
+// Enhanced color themes for icons - EXACTLY 5 COLORS
 const ACCENTS = [
   { 
-    bar: 'bg-gradient-to-br from-orange-500 to-orange-600', 
-    bg: 'bg-gradient-to-br from-orange-50 to-orange-100/50',
-    border: 'border-orange-200',
-    hover: 'hover:border-orange-300 hover:shadow-orange-200/50',
     icon: 'bg-orange-100 text-orange-600',
-    text: 'text-orange-700',
-    badge: 'bg-orange-100 text-orange-700'
+    text: 'text-gray-700',
   },
   { 
-    bar: 'bg-gradient-to-br from-blue-500 to-blue-600', 
-    bg: 'bg-gradient-to-br from-blue-50 to-blue-100/50',
-    border: 'border-blue-200',
-    hover: 'hover:border-blue-300 hover:shadow-blue-200/50',
     icon: 'bg-blue-100 text-blue-600',
-    text: 'text-blue-700',
-    badge: 'bg-blue-100 text-blue-700'
+    text: 'text-gray-700',
   },
   { 
-    bar: 'bg-gradient-to-br from-emerald-500 to-emerald-600', 
-    bg: 'bg-gradient-to-br from-emerald-50 to-emerald-100/50',
-    border: 'border-emerald-200',
-    hover: 'hover:border-emerald-300 hover:shadow-emerald-200/50',
     icon: 'bg-emerald-100 text-emerald-600',
-    text: 'text-emerald-700',
-    badge: 'bg-emerald-100 text-emerald-700'
+    text: 'text-gray-700',
   },
   { 
-    bar: 'bg-gradient-to-br from-violet-500 to-violet-600', 
-    bg: 'bg-gradient-to-br from-violet-50 to-violet-100/50',
-    border: 'border-violet-200',
-    hover: 'hover:border-violet-300 hover:shadow-violet-200/50',
     icon: 'bg-violet-100 text-violet-600',
-    text: 'text-violet-700',
-    badge: 'bg-violet-100 text-violet-700'
+    text: 'text-gray-700',
   },
   { 
-    bar: 'bg-gradient-to-br from-rose-500 to-rose-600', 
-    bg: 'bg-gradient-to-br from-rose-50 to-rose-100/50',
-    border: 'border-rose-200',
-    hover: 'hover:border-rose-300 hover:shadow-rose-200/50',
     icon: 'bg-rose-100 text-rose-600',
-    text: 'text-rose-700',
-    badge: 'bg-rose-100 text-rose-700'
+    text: 'text-gray-700',
   },
 ];
 
@@ -125,12 +100,9 @@ const SortableClassCard = ({ cls, index, isReorderMode, handleDelete, deleting, 
         className={`h-full ${!isReorderMode ? 'cursor-pointer' : ''}`}
       >
         <div
-          className={`relative h-full flex flex-col transition-all duration-200 rounded-xl border-2 ${accent.border} ${accent.bg} ${!isReorderMode ? `${accent.hover} hover:shadow-lg` : ''} ${isDragging ? 'shadow-xl border-blue-400' : ''} p-4`}
+          className={`relative h-full flex flex-col transition-all duration-200 rounded-xl bg-white ${!isReorderMode ? 'hover:shadow-md' : ''} ${isDragging ? 'shadow-xl border-2 border-blue-400' : 'shadow-sm'} p-4`}
         >
-          {/* Top colored bar */}
-          <div className={`absolute top-0 left-0 right-0 h-1.5 rounded-t-xl ${accent.bar}`} />
-
-          <div className="flex items-start justify-between gap-3 mt-1">
+          <div className="flex items-start justify-between gap-3">
             <div className="flex items-start gap-3 min-w-0 flex-1">
               {isReorderMode && (
                 <div {...attributes} {...listeners} onClick={(e) => e.stopPropagation()} className="cursor-grab active:cursor-grabbing text-gray-400 hover:text-gray-600 touch-none shrink-0 mt-1">
@@ -157,7 +129,7 @@ const SortableClassCard = ({ cls, index, isReorderMode, handleDelete, deleting, 
               <div className="relative shrink-0" ref={menuRef} onClick={(e) => e.stopPropagation()}>
                 <button
                   onClick={() => setMenuOpen(!menuOpen)}
-                  className="p-2 rounded-lg hover:bg-white/60 text-gray-600 hover:text-gray-900 transition-colors"
+                  className="p-2 rounded-lg hover:bg-gray-100 text-gray-600 hover:text-gray-900 transition-colors"
                   aria-label="More actions"
                 >
                   <MoreVertical className="w-5 h-5" />
@@ -212,7 +184,7 @@ const SortableClassCard = ({ cls, index, isReorderMode, handleDelete, deleting, 
                 <span className="text-xs font-semibold text-blue-700">Matched Students:</span>
               </div>
               {matchingStudents.slice(0, 2).map((student, idx) => (
-                <div key={idx} className="flex items-center gap-2 px-3 py-2 bg-white/80 border border-blue-200 rounded-lg">
+                <div key={idx} className="flex items-center gap-2 px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg">
                   <div className="w-8 h-8 bg-blue-100 rounded-lg flex items-center justify-center shrink-0">
                     <Users className="w-4 h-4 text-blue-600" />
                   </div>
@@ -223,7 +195,7 @@ const SortableClassCard = ({ cls, index, isReorderMode, handleDelete, deleting, 
                 </div>
               ))}
               {matchingStudents.length > 2 && (
-                <div className="px-3 py-1.5 bg-white/60 border border-gray-200 rounded-lg text-center">
+                <div className="px-3 py-1.5 bg-gray-50 border border-gray-200 rounded-lg text-center">
                   <span className="text-xs font-semibold text-gray-600">
                     +{matchingStudents.length - 2} more {matchingStudents.length - 2 === 1 ? 'student' : 'students'}
                   </span>
@@ -444,7 +416,7 @@ const ManageClasses = () => {
   const ClassGridSkeleton = () => (
     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-4">
       {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((i) => (
-        <div key={i} className="rounded-xl border-2 border-gray-200 bg-gray-50 p-4">
+        <div key={i} className="rounded-xl bg-white shadow-sm p-4">
           <div className="animate-pulse">
             <div className="flex items-start gap-3 mb-3">
               <Skeleton variant="rectangular" width="48px" height="48px" className="rounded-xl" />
@@ -563,7 +535,7 @@ const ManageClasses = () => {
                   </div>
                 ) : (
                   <>
-                                        <div className="flex items-center justify-between gap-2 px-4 sm:px-5 py-3 bg-gray-50 border-b-2 border-gray-100">
+                    <div className="flex items-center justify-between gap-2 px-4 sm:px-5 py-3 bg-gray-50 border-b-2 border-gray-100">
                       <p className="text-sm text-gray-700 font-medium">
                         <span className="font-bold text-red-600">{globalLowAtt.length}</span> student{globalLowAtt.length > 1 ? 's' : ''} need attention
                       </p>
@@ -571,7 +543,6 @@ const ManageClasses = () => {
                         <button onClick={() => fetchGlobalLowAttendance(true)} className="text-sm text-gray-600 hover:text-gray-900 inline-flex items-center gap-1.5 font-medium">
                           <RefreshCw className="w-3.5 h-3.5" /> Re-check
                         </button>
-                        {/* ✅ NEW: Rebuild totals button is now ALWAYS visible! */}
                         <button onClick={handleRebuildStats} disabled={rebuilding} className="text-sm text-gray-600 hover:text-gray-900 inline-flex items-center gap-1.5 font-medium disabled:opacity-50">
                           {rebuilding ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <RefreshCw className="w-3.5 h-3.5" />}
                           {rebuilding ? 'Rebuilding...' : 'Rebuild Totals'}
@@ -618,7 +589,7 @@ const ManageClasses = () => {
         {loading ? (
           <ClassGridSkeleton />
         ) : classes.length === 0 ? (
-          <div className="bg-white rounded-xl border-2 border-gray-200 text-center py-16 px-4">
+          <div className="bg-white rounded-xl border-2 border-gray-200 text-center py-16 px-4 shadow-sm">
             <div className="w-20 h-20 bg-orange-100 rounded-2xl flex items-center justify-center mx-auto mb-4">
               <Layers className="w-10 h-10 text-orange-500" />
             </div>
@@ -629,7 +600,7 @@ const ManageClasses = () => {
             </Link>
           </div>
         ) : displayList.length === 0 ? (
-          <div className="bg-white rounded-xl border-2 border-gray-200 text-center py-16 px-4">
+          <div className="bg-white rounded-xl border-2 border-gray-200 text-center py-16 px-4 shadow-sm">
             <Search className="w-12 h-12 text-gray-300 mx-auto mb-4" />
             <h3 className="text-gray-900 font-bold text-lg mb-2">No Matches Found</h3>
             <p className="text-gray-600 text-sm">Try searching with a different student name or ID</p>
@@ -637,7 +608,7 @@ const ManageClasses = () => {
         ) : (
           <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
             <SortableContext items={displayList.map(c => c.id)} strategy={rectSortingStrategy}>
-              {/* ✅ 5 COLUMN GRID WITH 5 COLORS */}
+              {/* ✅ 5 COLUMN GRID WITH CLEAN WHITE CARDS */}
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-4">
                 {displayList.map((cls, index) => (
                   <SortableClassCard
