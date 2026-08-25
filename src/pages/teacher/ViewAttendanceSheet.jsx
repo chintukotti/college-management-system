@@ -676,13 +676,15 @@ const ViewAttendanceSheet = () => {
                     <table className="w-full text-sm">
                         <thead className="bg-gray-50 sticky top-0">
                             <tr>
+                                <th className="p-2 text-center w-12">S.No</th>
                                 <th className="p-2 text-left">Student</th>
                                 <th className="p-2 text-center w-32">Attended Count</th>
                             </tr>
                         </thead>
                         <tbody>
-                            {students.map(s => (
+                            {students.map((s, index) => (
                                 <tr key={s.id} className="border-t">
+                                    <td className="p-2 text-center text-gray-500">{index + 1}</td>
                                     <td className="p-2">{s.name} <span className="text-gray-400 text-xs">({s.studentId})</span></td>
                                     <td className="p-2 text-center">
                                         <input type="number" min="0" max={manualMaxCount || 1} value={manualAttendance[s.id] || 0} onChange={(e) => handleStudentCountChange(s.id, e.target.value)} className="w-16 px-2 py-1 border rounded text-center" />

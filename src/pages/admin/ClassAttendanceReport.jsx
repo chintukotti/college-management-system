@@ -227,22 +227,22 @@ const ClassAttendanceReport = () => {
               <div className="hidden md:block">
                 <Card className="overflow-hidden p-0">
                   <div className="overflow-x-auto">
-                    <table className="w-full text-sm text-left whitespace-nowrap">
+                    <table className="w-full text-sm text-left whitespace-nowrap border-collapse">
                       <thead className="bg-gray-100 text-gray-700 font-semibold">
-                        {/* ✅ FIXED: Multi-row header with proper borders */}
+                        {/* ✅ FIXED: Multi-row header with proper borders and center alignment */}
                         <tr>
-                          <th rowSpan={2} className="p-3 border-b border-r sticky left-0 bg-gray-100 z-20 w-12 text-center">S.No</th>
-                          <th rowSpan={2} className="p-3 border-b border-r sticky left-12 bg-gray-100 z-20 w-28 min-w-[112px]">ID</th>
-                          <th rowSpan={2} className="p-3 border-b border-r sticky left-40 bg-gray-100 z-20 w-44 min-w-[176px]">Name</th>
+                          <th rowSpan={2} className="p-3 border border-gray-300 sticky left-0 bg-gray-100 z-20 w-12 text-center align-middle">S.No</th>
+                          <th rowSpan={2} className="p-3 border border-gray-300 sticky left-12 bg-gray-100 z-20 w-28 min-w-[112px] text-center align-middle">ID</th>
+                          <th rowSpan={2} className="p-3 border border-gray-300 sticky left-40 bg-gray-100 z-20 w-44 min-w-[176px] text-center align-middle">Name</th>
                           {dateHeaders.map(dh => (
-                            <th key={dh.date} colSpan={dh.span} className="p-3 border-b text-center min-w-[90px]">{dh.date}</th>
+                            <th key={dh.date} colSpan={dh.span} className="p-3 border border-gray-300 text-center min-w-[90px]">{dh.date}</th>
                           ))}
-                          <th rowSpan={2} className="p-3 border-b border-l text-center bg-blue-50 sticky right-16 z-20 min-w-[70px]">Total</th>
-                          <th rowSpan={2} className="p-3 border-b border-l text-center bg-blue-50 sticky right-0 z-20 min-w-[60px]">%</th>
+                          <th rowSpan={2} className="p-3 border border-gray-300 text-center bg-blue-50 sticky right-16 z-20 min-w-[70px] align-middle">Total</th>
+                          <th rowSpan={2} className="p-3 border border-gray-300 text-center bg-blue-50 sticky right-0 z-20 min-w-[60px] align-middle">%</th>
                         </tr>
                         <tr>
                           {allColumns.map(col => (
-                            <th key={col.id} className="p-2 border-b text-center min-w-[90px] text-xs font-normal text-gray-600 bg-gray-50">{col.subjectName || 'N/A'}</th>
+                            <th key={col.id} className="p-2 border border-gray-300 text-center min-w-[90px] text-xs font-normal text-gray-600 bg-gray-50">{col.subjectName || 'N/A'}</th>
                           ))}
                         </tr>
                       </thead>
@@ -251,19 +251,19 @@ const ClassAttendanceReport = () => {
                           const { present, total } = getTotal(stu.id);
                           const pct = getPercentage(stu.id);
                           return (
-                            <tr key={stu.id} className="hover:bg-gray-50 border-b">
-                              <td className="p-3 text-center text-gray-500 border-r sticky left-0 bg-white z-10">{index + 1}</td>
-                              <td className="p-3 font-medium text-gray-900 border-r sticky left-12 bg-white z-10">{stu.studentId}</td>
-                              <td className="p-3 text-gray-700 border-r sticky left-40 bg-white z-10">{stu.name}</td>
+                            <tr key={stu.id} className="hover:bg-gray-50">
+                              <td className="p-3 text-center text-gray-500 border border-gray-300 sticky left-0 bg-white z-10 align-middle">{index + 1}</td>
+                              <td className="p-3 font-medium text-gray-900 border border-gray-300 sticky left-12 bg-white z-10 text-center align-middle">{stu.studentId}</td>
+                              <td className="p-3 text-gray-700 border border-gray-300 sticky left-40 bg-white z-10 text-left align-middle">{stu.name}</td>
                               {allColumns.map(col => (
-                                <td key={col.id} className="p-3 text-center">
+                                <td key={col.id} className="p-3 text-center border border-gray-300 align-middle">
                                   <span className={`inline-block px-2 py-1 rounded text-xs font-bold ${getStatus(stu.id, col) === 'P' ? 'bg-green-100 text-green-700' : getStatus(stu.id, col) === 'A' ? 'bg-red-100 text-red-700' : 'text-gray-400'}`}>
                                     {getStatus(stu.id, col)}
                                   </span>
                                 </td>
                               ))}
-                              <td className="p-3 text-center font-bold text-blue-700 bg-blue-50 border-l sticky right-16 z-10">{present}/{total}</td>
-                              <td className={`p-3 text-center font-bold bg-blue-50 border-l sticky right-0 z-10 ${pct >= 75 ? 'text-green-600' : pct >= 50 ? 'text-yellow-600' : 'text-red-600'}`}>{pct}%</td>
+                              <td className="p-3 text-center font-bold text-blue-700 bg-blue-50 border border-gray-300 sticky right-16 z-10 align-middle">{present}/{total}</td>
+                              <td className={`p-3 text-center font-bold bg-blue-50 border border-gray-300 sticky right-0 z-10 align-middle ${pct >= 75 ? 'text-green-600' : pct >= 50 ? 'text-yellow-600' : 'text-red-600'}`}>{pct}%</td>
                             </tr>
                           );
                         })}
