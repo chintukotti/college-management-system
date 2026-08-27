@@ -1975,12 +1975,12 @@ export const changeStudentPassword = async (userId, currentPassword, newPassword
 };
 
 // ==================== CLASS UPDATE WITH STUDENTS ====================
-
 export const updateClassWithStudents = async (classId, data, oldClassName = null) => {
   try {
     await updateDoc(doc(db, 'classes', classId), data);
     
     if (data.name && oldClassName && data.name !== oldClassName) {
+      // 1. Update Students
       const classDoc = await getDoc(doc(db, 'classes', classId));
       let studentIds = classDoc.data().studentIds || [];
       
@@ -1997,6 +1997,22 @@ export const updateClassWithStudents = async (classId, data, oldClassName = null
           studentIds.slice(i, i + 500).forEach(id => batch.update(doc(db, 'users', id), { className: data.name }));
           await batch.commit();
         }
+      }
+
+      // ✅ NEW: 2. Update Subjects that reference this class
+      // This fixes the bug where teachers see the old class name in their dashboard/subjects
+      const subjectsQuery = query(collection(db, 'subjects'), where('classIds', 'array-contains', classId));
+      const subjectsSnapshot = await getDocs(subjectsQuery);
+      
+      if (!subjectsSnapshot.empty) {
+        const subBatch = writeBatch(db);
+        subjectsSnapshot.docs.forEach(subjectDoc => {
+          subBatch.update(subjectDoc.ref, {
+            [`classNames.${classId}`]: data.name
+          });
+        });
+        await subBatch.commit();
+        invalidateSubjectCaches(); // Clear subject cache so teachers get fresh data
       }
     }
 
