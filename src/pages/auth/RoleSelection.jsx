@@ -1,38 +1,29 @@
-// src/pages/auth/RoleSelection.jsx
-
-import React from 'react';
+import React, { useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { GraduationCap, ShieldCheck, BookOpen, User, ArrowRight } from 'lucide-react';
+import { useAuth } from '../../contexts/AuthContext';
 
 const RoleSelection = () => {
   const navigate = useNavigate();
+  const { currentUser, userRole } = useAuth(); // ✅ Get auth state
   const currentYear = new Date().getFullYear();
 
-  const roles = [
-    {
-      id: 'admin',
-      title: 'Admin',
-      description: 'Manage teachers and system settings',
-      icon: ShieldCheck,
-      color: 'bg-purple-500',
-      hoverColor: 'hover:bg-purple-600'
-    },
-    {
-      id: 'teacher',
-      title: 'Teacher',
-      description: 'See classes and manage attendance',
-      icon: BookOpen,
-      color: 'bg-blue-500',
-      hoverColor: 'hover:bg-blue-600'
-    },
-    {
-      id: 'student',
-      title: 'Student',
-      description: 'View your attendance and progress',
-      icon: User,
-      color: 'bg-green-500',
-      hoverColor: 'hover:bg-green-600'
+  // ✅ NEW: Redirect to dashboard if already logged in
+  useEffect(() => {
+    if (currentUser && userRole) {
+      const dashboardPaths = {
+        admin: '/admin/dashboard',
+        teacher: '/teacher/dashboard',
+        student: '/student/dashboard'
+      };
+      navigate(dashboardPaths[userRole], { replace: true });
     }
+  }, [currentUser, userRole, navigate]);
+
+  const roles = [
+    { id: 'admin', title: 'Admin', description: 'Manage teachers and system settings', icon: ShieldCheck, color: 'bg-purple-500', hoverColor: 'hover:bg-purple-600' },
+    { id: 'teacher', title: 'Teacher', description: 'See classes and manage attendance', icon: BookOpen, color: 'bg-blue-500', hoverColor: 'hover:bg-blue-600' },
+    { id: 'student', title: 'Student', description: 'View your attendance and progress', icon: User, color: 'bg-green-500', hoverColor: 'hover:bg-green-600' }
   ];
 
   const handleRoleSelect = (role) => {
